@@ -14,7 +14,7 @@
 namespace {
 constexpr int pagesPerRefresh = 15;
 constexpr unsigned long skipChapterMs = 700;
-constexpr float lineCompression = 0.95f;
+constexpr float lineCompression = 1.1f;  // 110% line height for better Korean readability
 constexpr int marginTop = 8;
 constexpr int marginRight = 10;
 constexpr int marginBottom = 22;
