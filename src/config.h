@@ -43,9 +43,12 @@
  *    "./lib/EpdFont/builtinFonts/d2coding_14.h",
  *  ].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
  */
-#define SMALL_FONT_ID 1362425038
+#define SMALL_FONT_ID 1482513144
 
 /*
+ * D2Coding font:
+ * #define SMALL_FONT_ID 1362425038
+ *
  * Pixelarial font (original):
  *  ruby -rdigest -e 'puts [
  *    "./lib/EpdFont/builtinFonts/pixelarial14.h",

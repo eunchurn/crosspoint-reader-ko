@@ -211,8 +211,8 @@ void setup() {
   renderer.insertFont(READER_FONT_ID, eulyooFontFamily);
   // renderer.insertFont(UI_FONT_ID, ubuntuFontFamily);
   renderer.insertFont(UI_FONT_ID, pretendardFontFamily);
-  // renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
-  renderer.insertFont(SMALL_FONT_ID, d2codingFontFamily);
+  renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
+  // renderer.insertFont(SMALL_FONT_ID, d2codingFontFamily);
   Serial.printf("[%lu] [   ] Fonts setup\n", millis());
 
   exitActivity();
