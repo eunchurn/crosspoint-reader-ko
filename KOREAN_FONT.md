@@ -1,117 +1,210 @@
-# Korean Font (을유1945) 적용 가이드
+# Korean Font Support Guide
 
 ## 개요
 
-기본 리더 폰트를 Bookerly에서 **을유1945 (Eulyoo1945)**로 변경했습니다.
+한글 지원을 위해 세 가지 폰트를 추가했습니다:
 
-을유1945는 한글과 영문을 모두 지원하는 서체로, e-ink 디스플레이에서 한글 가독성을 향상시킵니다.
+| 용도 | 폰트 | 설명 |
+|------|------|------|
+| 📖 **리더** | 을유1945 (Eulyoo1945) | EPUB 본문용 명조 계열 |
+| 🖥️ **UI** | Pretendard | 시스템 메뉴용 고딕 계열 |
+| 🔤 **모노** | D2Coding | 코드/기술 정보용 고정폭 |
+
+**Flash 사용량**: 94.1% (6.16MB / 6.55MB)
+
+---
 
 ## 적용된 폰트
 
-| 스타일 | 파일명 | 헤더 파일 |
-|--------|--------|-----------|
-| Regular | `Eulyoo1945-Regular.ttf` | `eulyoo_2b.h` |
-| SemiBold | `Eulyoo1945-SemiBold.ttf` | `eulyoo_semibold_2b.h` |
+### 1. 을유1945 (Eulyoo1945) - 리더 폰트
+
+EPUB 본문 표시용 명조 계열 서체입니다.
+
+| 스타일 | TTF 파일 | 헤더 파일 | 크기 |
+|--------|----------|-----------|------|
+| Regular | `Eulyoo1945-Regular.ttf` | `eulyoo_2b.h` | 8.0MB |
+| SemiBold | `Eulyoo1945-SemiBold.ttf` | `eulyoo_semibold_2b.h` | 8.4MB |
+
+**지원 문자**:
+- 한글 음절 (11,172자)
+- 한글 호환 자모
+- CJK 통합 한자 (20,992자)
+- 기본 라틴, 키릴 문자 등
+
+### 2. Pretendard - UI 폰트
+
+시스템 메뉴 및 UI 표시용 고딕 계열 서체입니다.
+
+| 스타일 | TTF 파일 | 헤더 파일 | 크기 |
+|--------|----------|-----------|------|
+| SemiBold | `Pretendard-SemiBold.ttf` | `pretendard_10.h` | 6.2MB |
+
+**지원 문자**:
+- 한글 음절 (11,172자)
+- 한글 호환 자모
+- CJK 통합 한자 (20,992자)
+- 기본 라틴 문자 등
+
+### 3. D2Coding - 모노 폰트
+
+코드 및 기술 정보 표시용 고정폭 서체입니다.
+
+| 스타일 | TTF 파일 | 헤더 파일 | 크기 |
+|--------|----------|-----------|------|
+| Regular | `D2CodingLigatureNerdFont-Regular.ttf` | `d2coding_14.h` | 370KB |
+
+**지원 문자**:
+- 기본 라틴 문자
+- 일반 구두점 및 기호
+- ⚠️ **한글 미포함** (Flash 용량 제한)
+
+---
 
 ## 변경된 파일
 
-### 1. `lib/EpdFont/builtinFonts/`
-- `eulyoo_2b.h` - Regular 폰트 (2-bit, size 14)
-- `eulyoo_semibold_2b.h` - SemiBold 폰트 (2-bit, size 14)
+### `lib/EpdFont/builtinFonts/`
+```
+eulyoo_2b.h          # 리더 폰트 Regular
+eulyoo_semibold_2b.h # 리더 폰트 SemiBold
+pretendard_10.h      # UI 폰트
+d2coding_14.h        # 모노 폰트
+```
 
-### 2. `src/main.cpp`
+### `src/main.cpp`
 ```cpp
 // 추가된 include
 #include <builtinFonts/eulyoo_2b.h>
 #include <builtinFonts/eulyoo_semibold_2b.h>
+#include <builtinFonts/pretendard_10.h>
+#include <builtinFonts/d2coding_14.h>
 
-// 추가된 폰트 정의
+// 폰트 정의
 EpdFont eulyooFont(&eulyoo_2b);
 EpdFont eulyooSemiBoldFont(&eulyoo_semibold_2b);
 EpdFontFamily eulyooFontFamily(&eulyooFont, &eulyooSemiBoldFont);
 
-// 기본 리더 폰트로 설정
-// renderer.insertFont(READER_FONT_ID, bookerlyFontFamily);  // 기존 (주석 처리)
-renderer.insertFont(READER_FONT_ID, eulyooFontFamily);       // 변경됨
+EpdFont pretendardFont(&pretendard_10);
+EpdFontFamily pretendardFontFamily(&pretendardFont);
+
+EpdFont d2codingFont(&d2coding_14);
+EpdFontFamily d2codingFontFamily(&d2codingFont);
+
+// 폰트 등록
+renderer.insertFont(READER_FONT_ID, eulyooFontFamily);      // 리더
+renderer.insertFont(UI_FONT_ID, pretendardFontFamily);      // UI
+renderer.insertFont(SMALL_FONT_ID, d2codingFontFamily);     // 모노
 ```
 
-### 3. `src/config.h`
+### `src/config.h`
 ```cpp
-// 새로운 폰트 ID (한글 포함)
-#define READER_FONT_ID 1038169715
-
-// 기존 Bookerly 폰트 ID (주석으로 보존)
-// #define READER_FONT_ID 1818981670
+#define READER_FONT_ID (-15174892)    // Eulyoo1945
+#define UI_FONT_ID (-575875680)       // Pretendard
+#define SMALL_FONT_ID 1362425038      // D2Coding
 ```
+
+---
 
 ## 폰트 변환 방법
 
-TTF 폰트를 헤더 파일로 변환하려면:
+### 기본 명령어
 
 ```bash
 python lib/EpdFont/scripts/fontconvert.py <name> <size> <ttf_file> --2bit > output.h
 ```
 
-### 한글 + 한자 포함 변환 (중요!)
-
-기본 fontconvert.py는 한글/한자 유니코드 범위가 주석 처리되어 있습니다.
-한글과 한자를 포함하려면 `--additional-intervals` 옵션을 사용해야 합니다:
+### 한글 + 한자 포함 변환
 
 ```bash
-# Regular
+# Eulyoo1945 Regular (리더)
 python lib/EpdFont/scripts/fontconvert.py eulyoo_2b 14 fonts/Eulyoo1945-Regular.ttf --2bit \
   --additional-intervals 0xAC00,0xD7AF \
   --additional-intervals 0x3130,0x318F \
   --additional-intervals 0x4E00,0x9FFF \
   2>/dev/null > lib/EpdFont/builtinFonts/eulyoo_2b.h
 
-# SemiBold
+# Eulyoo1945 SemiBold (리더)
 python lib/EpdFont/scripts/fontconvert.py eulyoo_semibold_2b 14 fonts/Eulyoo1945-SemiBold.ttf --2bit \
   --additional-intervals 0xAC00,0xD7AF \
   --additional-intervals 0x3130,0x318F \
   --additional-intervals 0x4E00,0x9FFF \
   2>/dev/null > lib/EpdFont/builtinFonts/eulyoo_semibold_2b.h
+
+# Pretendard (UI)
+python lib/EpdFont/scripts/fontconvert.py pretendard_10 10 fonts/Pretendard-SemiBold.ttf --2bit \
+  --additional-intervals 0xAC00,0xD7AF \
+  --additional-intervals 0x3130,0x318F \
+  --additional-intervals 0x4E00,0x9FFF \
+  2>/dev/null > lib/EpdFont/builtinFonts/pretendard_10.h
+
+# D2Coding (모노) - 기본 문자만 (한글 제외)
+python lib/EpdFont/scripts/fontconvert.py d2coding_14 14 fonts/D2CodingLigatureNerdFont-Regular.ttf --2bit \
+  2>/dev/null > lib/EpdFont/builtinFonts/d2coding_14.h
 ```
 
 ### 유니코드 범위
 
-| 범위             | 설명                                      |
-|------------------|-------------------------------------------|
-| `0xAC00,0xD7AF`  | 한글 음절 (Hangul Syllables) - 11,172자   |
-| `0x3130,0x318F`  | 한글 호환 자모 (Hangul Compatibility Jamo)|
-| `0x4E00,0x9FFF`  | CJK 통합 한자 (CJK Unified Ideographs) - 20,992자 |
+| 범위 | 설명 | 문자 수 |
+|------|------|---------|
+| `0xAC00,0xD7AF` | 한글 음절 (Hangul Syllables) | 11,172자 |
+| `0x3130,0x318F` | 한글 호환 자모 (Hangul Compatibility Jamo) | 96자 |
+| `0x4E00,0x9FFF` | CJK 통합 한자 (CJK Unified Ideographs) | 20,992자 |
 
 ### 의존성
-- Python 3
-- freetype-py (`pip install freetype-py`)
+
+```bash
+pip install freetype-py
+```
+
+---
 
 ## 폰트 ID 생성
 
-새 폰트 ID를 생성하려면:
+폰트 파일이 변경되면 새 ID를 생성해야 합니다:
 
 ```bash
+# READER_FONT_ID
 ruby -rdigest -e 'puts [
   "./lib/EpdFont/builtinFonts/eulyoo_2b.h",
   "./lib/EpdFont/builtinFonts/eulyoo_semibold_2b.h",
 ].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
+
+# UI_FONT_ID
+ruby -rdigest -e 'puts [
+  "./lib/EpdFont/builtinFonts/pretendard_10.h",
+].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
+
+# SMALL_FONT_ID
+ruby -rdigest -e 'puts [
+  "./lib/EpdFont/builtinFonts/d2coding_14.h",
+].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
 ```
 
-## Bookerly로 되돌리기
+---
 
-기존 Bookerly 폰트로 되돌리려면:
+## 원본 폰트로 되돌리기
 
-1. `src/main.cpp`에서:
-   ```cpp
-   renderer.insertFont(READER_FONT_ID, bookerlyFontFamily);
-   // renderer.insertFont(READER_FONT_ID, eulyooFontFamily);
-   ```
+### `src/main.cpp`
+```cpp
+renderer.insertFont(READER_FONT_ID, bookerlyFontFamily);  // Bookerly
+renderer.insertFont(UI_FONT_ID, ubuntuFontFamily);        // Ubuntu
+renderer.insertFont(SMALL_FONT_ID, smallFontFamily);      // Pixelarial
+```
 
-2. `src/config.h`에서:
-   ```cpp
-   #define READER_FONT_ID 1818981670
-   ```
+### `src/config.h`
+```cpp
+#define READER_FONT_ID 1818981670     // Bookerly
+#define UI_FONT_ID (-1619831379)      // Ubuntu
+#define SMALL_FONT_ID 1482513144      // Pixelarial
+```
+
+---
 
 ## 라이선스
 
-을유1945 폰트는 [을유문화사](https://www.eulyoo.co.kr/)에서 제공하는 서체입니다.
-사용 전 라이선스 조건을 확인하세요.
+| 폰트 | 제공 | 라이선스 |
+|------|------|----------|
+| 을유1945 | [을유문화사](https://www.eulyoo.co.kr/) | 확인 필요 |
+| Pretendard | [GitHub](https://github.com/orioncactus/pretendard) | OFL 1.1 |
+| D2Coding | [GitHub](https://github.com/naver/d2codingfont) | OFL 1.1 |
+
+사용 전 각 폰트의 라이선스 조건을 확인하세요.
