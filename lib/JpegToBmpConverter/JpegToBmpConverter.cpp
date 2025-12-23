@@ -13,14 +13,40 @@ struct JpegReadContext {
   size_t bufferFilled;
 };
 
-// Helper function: Convert 8-bit grayscale to 2-bit (0-3)
-uint8_t JpegToBmpConverter::grayscaleTo2Bit(const uint8_t grayscale) {
-  // Simple threshold mapping:
-  // 0-63 -> 0 (black)
-  // 64-127 -> 1 (dark gray)
-  // 128-191 -> 2 (light gray)
-  // 192-255 -> 3 (white)
-  return grayscale >> 6;
+// 4x4 Bayer ordered dithering matrix (normalized to 0-255 range for 16 levels)
+// This creates a pattern that distributes quantization error spatially
+// Reference: https://surma.dev/things/ditherpunk/
+static const uint8_t bayerMatrix4x4[4][4] = {
+    {0, 128, 32, 160},    //  0/16,  8/16,  2/16, 10/16
+    {192, 64, 224, 96},   // 12/16,  4/16, 14/16,  6/16
+    {48, 176, 16, 144},   //  3/16, 11/16,  1/16,  9/16
+    {240, 112, 208, 80}   // 15/16,  7/16, 13/16,  5/16
+};
+
+// Helper function: Convert 8-bit grayscale to 2-bit (0-3) using ordered dithering
+uint8_t JpegToBmpConverter::grayscaleTo2Bit(const uint8_t grayscale, const int x, const int y) {
+  // Get the threshold from Bayer matrix based on pixel position
+  const uint8_t threshold = bayerMatrix4x4[y & 3][x & 3];
+
+  // For 4-level output (2-bit), we need to map grayscale to one of 4 levels
+  // Each level spans ~85 values (255/3 ≈ 85)
+  // We use the Bayer threshold to decide between adjacent levels
+
+  // Scale grayscale to 0-765 range (3 * 255) for finer comparison
+  const int scaled = grayscale * 3;
+
+  // Determine which level pair we're between, then use dithering to pick one
+  if (scaled < 255) {
+    // Between level 0 (black) and level 1 (dark gray)
+    // Use threshold to decide: if scaled value + dither > 255, go to level 1
+    return (scaled + threshold >= 255) ? 1 : 0;
+  } else if (scaled < 510) {
+    // Between level 1 (dark gray) and level 2 (light gray)
+    return ((scaled - 255) + threshold >= 255) ? 2 : 1;
+  } else {
+    // Between level 2 (light gray) and level 3 (white)
+    return ((scaled - 510) + threshold >= 255) ? 3 : 2;
+  }
 }
 
 inline void write16(Print& out, const uint16_t value) {
@@ -223,7 +249,7 @@ bool JpegToBmpConverter::jpegFileToBmpStream(File& jpegFile, Print& bmpOut) {
       for (int x = 0; x < imageInfo.m_width; x++) {
         const int bufferY = y - startRow;
         const uint8_t gray = mcuRowBuffer[bufferY * imageInfo.m_width + x];
-        const uint8_t twoBit = grayscaleTo2Bit(gray);
+        const uint8_t twoBit = grayscaleTo2Bit(gray, x, y);
 
         const int byteIndex = (x * 2) / 8;
         const int bitOffset = 6 - ((x * 2) % 8);  // 6, 4, 2, 0
