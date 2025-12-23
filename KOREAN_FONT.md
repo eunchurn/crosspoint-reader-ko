@@ -29,6 +29,7 @@ EPUB 본문 표시용 명조 계열 서체입니다.
 - 한글 음절 (11,172자)
 - 한글 호환 자모
 - CJK 통합 한자 (20,992자)
+- CJK 기호 및 구두점 (『』「」《》〈〉【】 등)
 - 기본 라틴, 키릴 문자 등
 
 ### 2. Pretendard - UI 폰트
@@ -120,6 +121,7 @@ python lib/EpdFont/scripts/fontconvert.py eulyoo_2b 14 fonts/Eulyoo1945-Regular.
   --additional-intervals 0xAC00,0xD7AF \
   --additional-intervals 0x3130,0x318F \
   --additional-intervals 0x4E00,0x9FFF \
+  --additional-intervals 0x3000,0x303F \
   2>/dev/null > lib/EpdFont/builtinFonts/eulyoo_2b.h
 
 # Eulyoo1945 SemiBold (리더)
@@ -127,6 +129,7 @@ python lib/EpdFont/scripts/fontconvert.py eulyoo_semibold_2b 14 fonts/Eulyoo1945
   --additional-intervals 0xAC00,0xD7AF \
   --additional-intervals 0x3130,0x318F \
   --additional-intervals 0x4E00,0x9FFF \
+  --additional-intervals 0x3000,0x303F \
   2>/dev/null > lib/EpdFont/builtinFonts/eulyoo_semibold_2b.h
 
 # Pretendard (UI)
@@ -148,6 +151,7 @@ python lib/EpdFont/scripts/fontconvert.py d2coding_14 14 fonts/D2CodingLigatureN
 | `0xAC00,0xD7AF` | 한글 음절 (Hangul Syllables) | 11,172자 |
 | `0x3130,0x318F` | 한글 호환 자모 (Hangul Compatibility Jamo) | 96자 |
 | `0x4E00,0x9FFF` | CJK 통합 한자 (CJK Unified Ideographs) | 20,992자 |
+| `0x3000,0x303F` | CJK 기호 및 구두점 (『』「」《》〈〉【】 등) | 64자 |
 
 ### 의존성
 
