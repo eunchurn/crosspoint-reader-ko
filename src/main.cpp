@@ -9,9 +9,13 @@
 #include <builtinFonts/bookerly_bold_2b.h>
 #include <builtinFonts/bookerly_bold_italic_2b.h>
 #include <builtinFonts/bookerly_italic_2b.h>
+#include <builtinFonts/eulyoo_2b.h>
+#include <builtinFonts/eulyoo_semibold_2b.h>
 #include <builtinFonts/pixelarial14.h>
 #include <builtinFonts/ubuntu_10.h>
 #include <builtinFonts/ubuntu_bold_10.h>
+#include <builtinFonts/pretendard_10.h>
+#include <builtinFonts/d2coding_14.h>
 
 #include "Battery.h"
 #include "CrossPointSettings.h"
@@ -51,12 +55,22 @@ EpdFont bookerlyItalicFont(&bookerly_italic_2b);
 EpdFont bookerlyBoldItalicFont(&bookerly_bold_italic_2b);
 EpdFontFamily bookerlyFontFamily(&bookerlyFont, &bookerlyBoldFont, &bookerlyItalicFont, &bookerlyBoldItalicFont);
 
+EpdFont eulyooFont(&eulyoo_2b);
+EpdFont eulyooSemiBoldFont(&eulyoo_semibold_2b);
+EpdFontFamily eulyooFontFamily(&eulyooFont, &eulyooSemiBoldFont);
+
 EpdFont smallFont(&pixelarial14);
 EpdFontFamily smallFontFamily(&smallFont);
 
 EpdFont ubuntu10Font(&ubuntu_10);
 EpdFont ubuntuBold10Font(&ubuntu_bold_10);
 EpdFontFamily ubuntuFontFamily(&ubuntu10Font, &ubuntuBold10Font);
+
+EpdFont pretendardFont(&pretendard_10);
+EpdFontFamily pretendardFontFamily(&pretendardFont);
+
+EpdFont d2codingFont(&d2coding_14);
+EpdFontFamily d2codingFontFamily(&d2codingFont);
 
 // Auto-sleep timeout (10 minutes of inactivity)
 constexpr unsigned long AUTO_SLEEP_TIMEOUT_MS = 10 * 60 * 1000;
@@ -193,9 +207,12 @@ void setup() {
   einkDisplay.begin();
   Serial.printf("[%lu] [   ] Display initialized\n", millis());
 
-  renderer.insertFont(READER_FONT_ID, bookerlyFontFamily);
-  renderer.insertFont(UI_FONT_ID, ubuntuFontFamily);
-  renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
+  // renderer.insertFont(READER_FONT_ID, bookerlyFontFamily);
+  renderer.insertFont(READER_FONT_ID, eulyooFontFamily);
+  // renderer.insertFont(UI_FONT_ID, ubuntuFontFamily);
+  renderer.insertFont(UI_FONT_ID, pretendardFontFamily);
+  // renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
+  renderer.insertFont(SMALL_FONT_ID, d2codingFontFamily);
   Serial.printf("[%lu] [   ] Fonts setup\n", millis());
 
   exitActivity();
