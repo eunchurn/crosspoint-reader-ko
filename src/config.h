@@ -10,6 +10,11 @@
 #define READER_FONT_ID (-15174892)
 
 /*
+ * Eulyoo size 10 (smaller):
+ * #define READER_FONT_ID 742157687
+ */
+
+/*
  * Bookerly font (original):
  *  ruby -rdigest -e 'puts [
  *    "./lib/EpdFont/builtinFonts/bookerly_2b.h",
@@ -23,12 +28,15 @@
 /**
  * Generated with:
  *  ruby -rdigest -e 'puts [
- *    "./lib/EpdFont/builtinFonts/pretendard_10.h",
+ *    "./lib/EpdFont/builtinFonts/pretendard_8.h",
  *  ].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
  */
-#define UI_FONT_ID (-575875680)
+#define UI_FONT_ID (-237359987)
 
 /*
+ * Pretendard size 10 (previous):
+ * #define UI_FONT_ID (-575875680)
+ *
  * Ubuntu font (original):
  *  ruby -rdigest -e 'puts [
  *    "./lib/EpdFont/builtinFonts/ubuntu_10.h",
@@ -38,10 +46,8 @@
  */
 
 /**
- * Generated with:
- *  ruby -rdigest -e 'puts [
- *    "./lib/EpdFont/builtinFonts/d2coding_14.h",
- *  ].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
+ * Using Pretendard for SMALL_FONT as well (Korean support)
+ * Same as UI_FONT_ID
  */
 #define SMALL_FONT_ID 1362425038
 

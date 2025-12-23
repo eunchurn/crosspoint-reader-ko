@@ -14,8 +14,9 @@
 #include <builtinFonts/pixelarial14.h>
 #include <builtinFonts/ubuntu_10.h>
 #include <builtinFonts/ubuntu_bold_10.h>
-#include <builtinFonts/pretendard_10.h>
-#include <builtinFonts/d2coding_14.h>
+#include <builtinFonts/pretendard_8.h>
+// #include <builtinFonts/d2coding_14.h>
+// #include <builtinFonts/neodgm_14.h>
 
 #include "Battery.h"
 #include "CrossPointSettings.h"
@@ -66,11 +67,14 @@ EpdFont ubuntu10Font(&ubuntu_10);
 EpdFont ubuntuBold10Font(&ubuntu_bold_10);
 EpdFontFamily ubuntuFontFamily(&ubuntu10Font, &ubuntuBold10Font);
 
-EpdFont pretendardFont(&pretendard_10);
+EpdFont pretendardFont(&pretendard_8);
 EpdFontFamily pretendardFontFamily(&pretendardFont);
 
-EpdFont d2codingFont(&d2coding_14);
-EpdFontFamily d2codingFontFamily(&d2codingFont);
+// EpdFont d2codingFont(&d2coding_14);
+// EpdFontFamily d2codingFontFamily(&d2codingFont);
+
+// EpdFont neodgmFont(&neodgm_14);
+// EpdFontFamily neodgmFontFamily(&neodgmFont);
 
 // Auto-sleep timeout (10 minutes of inactivity)
 constexpr unsigned long AUTO_SLEEP_TIMEOUT_MS = 10 * 60 * 1000;
