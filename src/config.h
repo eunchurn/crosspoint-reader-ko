@@ -7,16 +7,7 @@
  *    "./lib/EpdFont/builtinFonts/eulyoo_semibold_2b.h",
  *  ].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
  */
-<<<<<<< HEAD
 #define READER_FONT_ID 634176764
-
-/*
- * Eulyoo size 10 (smaller):
- * #define READER_FONT_ID 742157687
- */
-=======
-#define READER_FONT_ID (-15174892)
->>>>>>> 1c44607 (Add Korean font support with Eulyoo1945, Pretendard, and D2Coding)
 
 /*
  * Bookerly font (original):
@@ -32,10 +23,10 @@
 /**
  * Generated with:
  *  ruby -rdigest -e 'puts [
- *    "./lib/EpdFont/builtinFonts/pretendard_10.h",
+ *    "./lib/EpdFont/builtinFonts/pretendard_8.h",
  *  ].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
  */
-#define UI_FONT_ID (-575875680)
+#define UI_FONT_ID (-237359987)
 
 /*
  * Ubuntu font (original):
@@ -47,21 +38,17 @@
  */
 
 /**
- * Using Pretendard for SMALL_FONT as well (Korean support)
- * Same as UI_FONT_ID
+ * Using Pretendard 8 for SMALL_FONT (same as UI_FONT)
  */
 #define SMALL_FONT_ID 1362425038
 
 /*
- * Pixelarial font (original):
+ * D2Coding font:
  *  ruby -rdigest -e 'puts [
  *    "./lib/EpdFont/builtinFonts/d2coding_14.h",
  *  ].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
- * #define SMALL_FONT_ID 1482513144
- */
-#define SMALL_FONT_ID 1362425038
-
-/*
+ * #define SMALL_FONT_ID 1876262046
+ *
  * Pixelarial font (original):
  *  ruby -rdigest -e 'puts [
  *    "./lib/EpdFont/builtinFonts/pixelarial14.h",
