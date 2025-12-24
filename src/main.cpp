@@ -158,6 +158,15 @@ void onGoHome() {
   enterNewActivity(new HomeActivity(renderer, inputManager, onGoToReaderHome, onGoToSettings, onGoToFileTransfer));
 }
 
+void setupDisplayAndFonts() {
+  einkDisplay.begin();
+  Serial.printf("[%lu] [   ] Display initialized\n", millis());
+  renderer.insertFont(READER_FONT_ID, bookerlyFontFamily);
+  renderer.insertFont(UI_FONT_ID, ubuntuFontFamily);
+  renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
+  Serial.printf("[%lu] [   ] Fonts setup\n", millis());
+}
+
 void setup() {
   t1 = millis();
 
@@ -177,8 +186,10 @@ void setup() {
   SPI.begin(EPD_SCLK, SD_SPI_MISO, EPD_MOSI, EPD_CS);
 
   // SD Card Initialization
-  if (!SD.begin(SD_SPI_CS, SPI, SPI_FQ)) {
+  // We need 6 open files concurrently when parsing a new chapter
+  if (!SD.begin(SD_SPI_CS, SPI, SPI_FQ, "/sd", 6)) {
     Serial.printf("[%lu] [   ] SD card initialization failed\n", millis());
+    setupDisplayAndFonts();
     exitActivity();
     enterNewActivity(new FullScreenMessageActivity(renderer, inputManager, "SD card error", BOLD));
     return;
@@ -189,14 +200,7 @@ void setup() {
   // verify power button press duration after we've read settings.
   verifyWakeupLongPress();
 
-  // Initialize display
-  einkDisplay.begin();
-  Serial.printf("[%lu] [   ] Display initialized\n", millis());
-
-  renderer.insertFont(READER_FONT_ID, bookerlyFontFamily);
-  renderer.insertFont(UI_FONT_ID, ubuntuFontFamily);
-  renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
-  Serial.printf("[%lu] [   ] Fonts setup\n", millis());
+  setupDisplayAndFonts();
 
   exitActivity();
   enterNewActivity(new BootActivity(renderer, inputManager));
