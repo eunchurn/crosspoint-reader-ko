@@ -22,8 +22,8 @@ jobs:
         with:
           python-version: '3.14'
 
-      - name: Install PlatformIO Core
-        run: pip install --upgrade platformio
+      - name: Install PlatformIO Core and esptool
+        run: pip install --upgrade platformio esptool
 
       - name: Build CrossPoint
         run: pio run -e gh_release
