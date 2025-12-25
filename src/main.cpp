@@ -156,6 +156,7 @@ void onGoToReader(const std::string& initialEpubPath) {
   enterNewActivity(new ReaderActivity(renderer, inputManager, initialEpubPath, onGoHome));
 }
 void onGoToReaderHome() { onGoToReader(std::string()); }
+void onContinueReading() { onGoToReader(APP_STATE.openEpubPath); }
 
 void onGoToFileTransfer() {
   exitActivity();
@@ -169,7 +170,8 @@ void onGoToSettings() {
 
 void onGoHome() {
   exitActivity();
-  enterNewActivity(new HomeActivity(renderer, inputManager, onGoToReaderHome, onGoToSettings, onGoToFileTransfer));
+  enterNewActivity(
+      new HomeActivity(renderer, inputManager, onContinueReading, onGoToReaderHome, onGoToSettings, onGoToFileTransfer));
 }
 
 void setupDisplayAndFonts() {

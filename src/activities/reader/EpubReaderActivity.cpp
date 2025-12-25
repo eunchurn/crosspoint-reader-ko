@@ -14,6 +14,7 @@
 namespace {
 constexpr int pagesPerRefresh = 15;
 constexpr unsigned long skipChapterMs = 700;
+constexpr unsigned long goHomeMs = 1000;
 constexpr float lineCompression = 1.4f;  // 140% line height for better Korean readability
 constexpr int marginTop = 8;
 constexpr int marginRight = 10;
@@ -108,8 +109,13 @@ void EpubReaderActivity::loop() {
     xSemaphoreGive(renderingMutex);
   }
 
-  if (inputManager.wasPressed(InputManager::BTN_BACK)) {
-    onGoBack();
+  // Long press (1s+) goes to home, short press goes to file selection
+  if (inputManager.wasReleased(InputManager::BTN_BACK)) {
+    if (inputManager.getHeldTime() >= goHomeMs) {
+      onGoHome();
+    } else {
+      onGoBack();
+    }
     return;
   }
 
