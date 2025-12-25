@@ -118,15 +118,25 @@ bool Section::persistPageDataToSD(const int fontId, const float lineCompression,
                                   const bool extraParagraphSpacing) {
   const auto localPath = epub->getSpineItem(spineIndex).href;
   const auto tmpHtmlPath = epub->getCachePath() + "/.tmp_" + std::to_string(spineIndex) + ".html";
-  File tmpHtml;
-  if (!FsHelpers::openFileForWrite("SCT", tmpHtmlPath, tmpHtml)) {
-    return false;
+
+  // Retry logic for SD card timing issues
+  bool success = false;
+  for (int attempt = 0; attempt < 3 && !success; attempt++) {
+    if (attempt > 0) {
+      Serial.printf("[%lu] [SCT] Retrying stream (attempt %d)...\n", millis(), attempt + 1);
+      delay(50);  // Brief delay before retry
+    }
+
+    File tmpHtml;
+    if (!FsHelpers::openFileForWrite("SCT", tmpHtmlPath, tmpHtml)) {
+      continue;
+    }
+    success = epub->readItemContentsToStream(localPath, tmpHtml, 1024);
+    tmpHtml.close();
   }
-  bool success = epub->readItemContentsToStream(localPath, tmpHtml, 1024);
-  tmpHtml.close();
 
   if (!success) {
-    Serial.printf("[%lu] [SCT] Failed to stream item contents to temp file\n", millis());
+    Serial.printf("[%lu] [SCT] Failed to stream item contents to temp file after retries\n", millis());
     return false;
   }
 
