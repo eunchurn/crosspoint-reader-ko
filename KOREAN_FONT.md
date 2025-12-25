@@ -161,3 +161,26 @@ ruby -rdigest -e 'puts [
 
 - **을유1945**: [을유문화사](https://www.eulyoo.co.kr/)에서 제공하는 서체입니다.
 - **Pretendard**: [GitHub](https://github.com/orioncactus/pretendard)에서 제공하는 오픈소스 서체입니다 (SIL Open Font License).
+
+## 설치 방법
+
+### 직접 플래시
+
+`CrossPoint-0.9.0-ko.bin` 파일을 다운로드하여 `0x0` 주소에 플래시:
+
+```bash
+esptool.py --chip esp32c3 write_flash 0x0 CrossPoint-0.9.0-ko.bin
+```
+
+### 웹사이트에서 플래시
+
+웹사이트에서 플래시 할 수 있습니다.
+
+<https://xteink.dve.al/>
+
+`CrossPoint-0.9.0-ko.bin` 파일을 다운로드하여 아래 방법으로 플래시
+
+**OTA fast flash controls** > Select File > Flash firmware from file
+
+> [!TIP]
+> **reset** 버튼을 한번 누른 후 전원 버튼을 1초이상 누르면 펌웨어 적용이 됩니다.
