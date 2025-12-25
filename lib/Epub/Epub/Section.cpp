@@ -115,7 +115,7 @@ bool Section::clearCache() const {
 
 bool Section::persistPageDataToSD(const int fontId, const float lineCompression, const int marginTop,
                                   const int marginRight, const int marginBottom, const int marginLeft,
-                                  const bool extraParagraphSpacing) {
+                                  const bool extraParagraphSpacing, const std::function<void(int)>& progressFn) {
   const auto localPath = epub->getSpineItem(spineIndex).href;
   const auto tmpHtmlPath = epub->getCachePath() + "/.tmp_" + std::to_string(spineIndex) + ".html";
 
@@ -144,7 +144,8 @@ bool Section::persistPageDataToSD(const int fontId, const float lineCompression,
 
   ChapterHtmlSlimParser visitor(tmpHtmlPath, renderer, fontId, lineCompression, marginTop, marginRight, marginBottom,
                                 marginLeft, extraParagraphSpacing,
-                                [this](std::unique_ptr<Page> page) { this->onPageComplete(std::move(page)); });
+                                [this](std::unique_ptr<Page> page) { this->onPageComplete(std::move(page)); },
+                                progressFn);
   success = visitor.parseAndBuildPages();
 
   SD.remove(tmpHtmlPath.c_str());

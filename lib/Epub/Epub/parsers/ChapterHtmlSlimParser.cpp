@@ -221,6 +221,11 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
     return false;
   }
 
+  // Get file size for progress calculation
+  const size_t totalSize = file.size();
+  size_t bytesRead = 0;
+  int lastProgress = -1;
+
   XML_SetUserData(parser, this);
   XML_SetElementHandler(parser, startElement, endElement);
   XML_SetCharacterDataHandler(parser, characterData);
@@ -247,6 +252,16 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
       XML_ParserFree(parser);
       file.close();
       return false;
+    }
+
+    // Update progress (call every 10% change to avoid too frequent updates)
+    bytesRead += len;
+    if (progressFn && totalSize > 0) {
+      const int progress = static_cast<int>((bytesRead * 100) / totalSize);
+      if (progress != lastProgress && progress % 10 == 0) {
+        lastProgress = progress;
+        progressFn(progress);
+      }
     }
 
     done = file.available() == 0;
