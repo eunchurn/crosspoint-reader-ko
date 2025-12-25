@@ -580,7 +580,7 @@ void WifiSelectionActivity::renderConnecting() const {
   if (state == WifiSelectionState::SCANNING) {
     renderer.drawCenteredText(UI_FONT_ID, top, "Scanning...", true, REGULAR);
   } else {
-    renderer.drawCenteredText(READER_FONT_ID, top - 30, "Connecting...", true, BOLD);
+    renderer.drawCenteredText(UI_FONT_ID, top - 30, "Connecting...", true, BOLD);
 
     std::string ssidInfo = "to " + selectedSSID;
     if (ssidInfo.length() > 25) {
@@ -595,7 +595,7 @@ void WifiSelectionActivity::renderConnected() const {
   const auto height = renderer.getLineHeight(UI_FONT_ID);
   const auto top = (pageHeight - height * 4) / 2;
 
-  renderer.drawCenteredText(READER_FONT_ID, top - 30, "Connected!", true, BOLD);
+  renderer.drawCenteredText(UI_FONT_ID, top - 30, "Connected!", true, BOLD);
 
   std::string ssidInfo = "Network: " + selectedSSID;
   if (ssidInfo.length() > 28) {
@@ -615,7 +615,7 @@ void WifiSelectionActivity::renderSavePrompt() const {
   const auto height = renderer.getLineHeight(UI_FONT_ID);
   const auto top = (pageHeight - height * 3) / 2;
 
-  renderer.drawCenteredText(READER_FONT_ID, top - 40, "Connected!", true, BOLD);
+  renderer.drawCenteredText(UI_FONT_ID, top - 40, "Connected!", true, BOLD);
 
   std::string ssidInfo = "Network: " + selectedSSID;
   if (ssidInfo.length() > 28) {
@@ -654,7 +654,7 @@ void WifiSelectionActivity::renderConnectionFailed() const {
   const auto height = renderer.getLineHeight(UI_FONT_ID);
   const auto top = (pageHeight - height * 2) / 2;
 
-  renderer.drawCenteredText(READER_FONT_ID, top - 20, "Connection Failed", true, BOLD);
+  renderer.drawCenteredText(UI_FONT_ID, top - 20, "Connection Failed", true, BOLD);
   renderer.drawCenteredText(UI_FONT_ID, top + 20, connectionError.c_str(), true, REGULAR);
   renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to continue", true, REGULAR);
 }
@@ -665,7 +665,7 @@ void WifiSelectionActivity::renderForgetPrompt() const {
   const auto height = renderer.getLineHeight(UI_FONT_ID);
   const auto top = (pageHeight - height * 3) / 2;
 
-  renderer.drawCenteredText(READER_FONT_ID, top - 40, "Forget Network?", true, BOLD);
+  renderer.drawCenteredText(UI_FONT_ID, top - 40, "Forget Network?", true, BOLD);
 
   std::string ssidInfo = "Network: " + selectedSSID;
   if (ssidInfo.length() > 28) {

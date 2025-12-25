@@ -331,7 +331,7 @@ void CrossPointWebServerActivity::render() const {
   } else if (state == WebServerActivityState::AP_STARTING) {
     renderer.clearScreen();
     const auto pageHeight = renderer.getScreenHeight();
-    renderer.drawCenteredText(READER_FONT_ID, pageHeight / 2 - 20, "Starting Hotspot...", true, BOLD);
+    renderer.drawCenteredText(UI_FONT_ID, pageHeight / 2 - 20, "Starting Hotspot...", true, BOLD);
     renderer.displayBuffer();
   }
 }
