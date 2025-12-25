@@ -75,6 +75,7 @@ python lib/EpdFont/scripts/fontconvert.py eulyoo_2b 14 fonts/Eulyoo1945-Regular.
   --additional-intervals 0x2200,0x22FF \
   --additional-intervals 0x2300,0x23FF \
   --additional-intervals 0x2460,0x24FF \
+  --additional-intervals 0x2500,0x257F \
   --additional-intervals 0x25A0,0x25FF \
   --additional-intervals 0x2600,0x26FF \
   --additional-intervals 0x2700,0x27BF \
@@ -94,6 +95,7 @@ python lib/EpdFont/scripts/fontconvert.py eulyoo_semibold_2b 14 fonts/Eulyoo1945
   --additional-intervals 0x2200,0x22FF \
   --additional-intervals 0x2300,0x23FF \
   --additional-intervals 0x2460,0x24FF \
+  --additional-intervals 0x2500,0x257F \
   --additional-intervals 0x25A0,0x25FF \
   --additional-intervals 0x2600,0x26FF \
   --additional-intervals 0x2700,0x27BF \
@@ -116,6 +118,7 @@ python lib/EpdFont/scripts/fontconvert.py eulyoo_semibold_2b 14 fonts/Eulyoo1945
 | `0x2200-0x22FF` | Mathematical Operators (±×÷≠≤≥∞) |
 | `0x2300-0x23FF` | Miscellaneous Technical (⌚⌛⏰) |
 | `0x2460-0x24FF` | Enclosed Alphanumerics (①②③ⓐⓑⓒ) |
+| `0x2500-0x257F` | Box Drawings (─│┌┐└┘├┤┬┴┼) |
 | `0x25A0-0x25FF` | Geometric Shapes (○●◎□■△▲) |
 | `0x2600-0x26FF` | Miscellaneous Symbols (☀☁☂★☆♠♣♥♦) |
 | `0x2700-0x27BF` | Dingbats (✓✔✕✖✗✘) |

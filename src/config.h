@@ -7,7 +7,7 @@
  *    "./lib/EpdFont/builtinFonts/eulyoo_semibold_2b.h",
  *  ].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
  */
-#define READER_FONT_ID 634176764
+#define READER_FONT_ID 1965394602
 
 /*
  * Bookerly font (original):
