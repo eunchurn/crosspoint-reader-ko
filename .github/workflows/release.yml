@@ -28,6 +28,17 @@ jobs:
       - name: Build CrossPoint
         run: pio run -e gh_release
 
+      - name: Merge firmware binaries
+        run: |
+          esptool.py --chip esp32c3 merge_bin \
+            -o .pio/build/gh_release/CrossPoint-${{ github.ref_name }}.bin \
+            --flash_mode dio \
+            --flash_freq 80m \
+            --flash_size 8MB \
+            0x0 .pio/build/gh_release/bootloader.bin \
+            0x8000 .pio/build/gh_release/partitions.bin \
+            0x10000 .pio/build/gh_release/firmware.bin
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -43,9 +54,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            .pio/build/gh_release/bootloader.bin
-            .pio/build/gh_release/firmware.bin
-            .pio/build/gh_release/partitions.bin
+            .pio/build/gh_release/CrossPoint-${{ github.ref_name }}.bin
           generate_release_notes: false
           draft: false
           prerelease: false
