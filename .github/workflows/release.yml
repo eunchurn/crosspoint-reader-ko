@@ -38,3 +38,14 @@ jobs:
             .pio/build/gh_release/firmware.elf
             .pio/build/gh_release/firmware.map
             .pio/build/gh_release/partitions.bin
+
+      - name: Create Release with Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            .pio/build/gh_release/bootloader.bin
+            .pio/build/gh_release/firmware.bin
+            .pio/build/gh_release/partitions.bin
+          generate_release_notes: false
+          draft: false
+          prerelease: false
