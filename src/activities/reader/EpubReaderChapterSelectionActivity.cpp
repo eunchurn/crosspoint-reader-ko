@@ -95,7 +95,7 @@ void EpubReaderChapterSelectionActivity::renderScreen() {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
-  renderer.drawCenteredText(READER_FONT_ID, 10, "Select Chapter", true, BOLD);
+  renderer.drawCenteredText(UI_FONT_ID, 10, "Select Chapter", true, BOLD);
 
   const auto pageStartIndex = selectorIndex / PAGE_ITEMS * PAGE_ITEMS;
   renderer.fillRect(0, 60 + (selectorIndex % PAGE_ITEMS) * 30 + 2, pageWidth - 1, 30);

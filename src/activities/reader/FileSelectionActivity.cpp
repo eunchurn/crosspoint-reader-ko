@@ -159,7 +159,7 @@ void FileSelectionActivity::render() const {
   renderer.clearScreen();
 
   const auto pageWidth = GfxRenderer::getScreenWidth();
-  renderer.drawCenteredText(READER_FONT_ID, 10, "Books", true, BOLD);
+  renderer.drawCenteredText(UI_FONT_ID, 10, "Books", true, BOLD);
 
   // Help text
   renderer.drawButtonHints(UI_FONT_ID, "« Home", "", "", "");
