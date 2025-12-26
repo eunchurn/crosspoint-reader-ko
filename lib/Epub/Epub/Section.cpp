@@ -127,12 +127,23 @@ bool Section::persistPageDataToSD(const int fontId, const float lineCompression,
       delay(50);  // Brief delay before retry
     }
 
+    // Remove any incomplete file from previous attempt before retrying
+    if (SD.exists(tmpHtmlPath.c_str())) {
+      SD.remove(tmpHtmlPath.c_str());
+    }
+
     File tmpHtml;
     if (!FsHelpers::openFileForWrite("SCT", tmpHtmlPath, tmpHtml)) {
       continue;
     }
     success = epub->readItemContentsToStream(localPath, tmpHtml, 1024);
     tmpHtml.close();
+
+    // If streaming failed, remove the incomplete file immediately
+    if (!success && SD.exists(tmpHtmlPath.c_str())) {
+      SD.remove(tmpHtmlPath.c_str());
+      Serial.printf("[%lu] [SCT] Removed incomplete temp file after failed attempt\n", millis());
+    }
   }
 
   if (!success) {
