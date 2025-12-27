@@ -11,7 +11,6 @@
 #include <GfxRenderer.h>
 #include <InputManager.h>
 
-#include "Battery.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "config.h"
@@ -20,9 +19,6 @@ namespace {
 constexpr int pagesPerRefresh = 15;
 constexpr unsigned long skipPageMs = 700;
 constexpr unsigned long goHomeMs = 1000;
-constexpr int statusBarHeight = 24;
-constexpr int marginLeft = 10;
-constexpr int marginRight = 10;
 }  // namespace
 
 void XtcReaderActivity::taskTrampoline(void* param) {
@@ -221,63 +217,6 @@ void XtcReaderActivity::renderPage() {
   }
 
   Serial.printf("[%lu] [XTR] Rendered page %lu/%lu\n", millis(), currentPage + 1, xtc->getPageCount());
-}
-
-void XtcReaderActivity::renderStatusBar() const {
-  const int screenWidth = GfxRenderer::getScreenWidth();
-  const int screenHeight = GfxRenderer::getScreenHeight();
-  constexpr int textY = 776;
-
-  // Calculate progress
-  const uint8_t progress = xtc->calculateProgress(currentPage);
-
-  // Right aligned: page number and progress
-  const std::string progressText = std::to_string(currentPage + 1) + "/" + std::to_string(xtc->getPageCount()) + "  " +
-                                   std::to_string(progress) + "%";
-  const int progressTextWidth = renderer.getTextWidth(SMALL_FONT_ID, progressText.c_str());
-  renderer.drawText(SMALL_FONT_ID, screenWidth - marginRight - progressTextWidth, textY, progressText.c_str());
-
-  // Left aligned: battery
-  const uint16_t percentage = battery.readPercentage();
-  const std::string percentageText = std::to_string(percentage) + "%";
-  const int percentageTextWidth = renderer.getTextWidth(SMALL_FONT_ID, percentageText.c_str());
-  renderer.drawText(SMALL_FONT_ID, 20 + marginLeft, textY, percentageText.c_str());
-
-  // Battery icon
-  constexpr int batteryWidth = 15;
-  constexpr int batteryHeight = 10;
-  constexpr int x = marginLeft;
-  constexpr int y = 783;
-
-  // Battery outline
-  renderer.drawLine(x, y, x + batteryWidth - 4, y);
-  renderer.drawLine(x, y + batteryHeight - 1, x + batteryWidth - 4, y + batteryHeight - 1);
-  renderer.drawLine(x, y, x, y + batteryHeight - 1);
-  renderer.drawLine(x + batteryWidth - 4, y, x + batteryWidth - 4, y + batteryHeight - 1);
-  renderer.drawLine(x + batteryWidth - 3, y + 2, x + batteryWidth - 1, y + 2);
-  renderer.drawLine(x + batteryWidth - 3, y + batteryHeight - 3, x + batteryWidth - 1, y + batteryHeight - 3);
-  renderer.drawLine(x + batteryWidth - 1, y + 2, x + batteryWidth - 1, y + batteryHeight - 3);
-
-  // Battery fill
-  int filledWidth = percentage * (batteryWidth - 5) / 100 + 1;
-  if (filledWidth > batteryWidth - 5) {
-    filledWidth = batteryWidth - 5;
-  }
-  renderer.fillRect(x + 1, y + 1, filledWidth, batteryHeight - 2);
-
-  // Center: book title
-  const int titleMarginLeft = 20 + percentageTextWidth + 30 + marginLeft;
-  const int titleMarginRight = progressTextWidth + 30 + marginRight;
-  const int availableTextWidth = screenWidth - titleMarginLeft - titleMarginRight;
-
-  std::string title = xtc->getTitle();
-  int titleWidth = renderer.getTextWidth(SMALL_FONT_ID, title.c_str());
-  while (titleWidth > availableTextWidth && title.length() > 11) {
-    title.replace(title.length() - 8, 8, "...");
-    titleWidth = renderer.getTextWidth(SMALL_FONT_ID, title.c_str());
-  }
-
-  renderer.drawText(SMALL_FONT_ID, titleMarginLeft + (availableTextWidth - titleWidth) / 2, textY, title.c_str());
 }
 
 void XtcReaderActivity::saveProgress() const {

@@ -28,7 +28,6 @@ class XtcReaderActivity final : public Activity {
   [[noreturn]] void displayTaskLoop();
   void renderScreen();
   void renderPage();
-  void renderStatusBar() const;
   void saveProgress() const;
   void loadProgress();
 
