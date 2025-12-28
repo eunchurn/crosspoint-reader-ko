@@ -322,9 +322,39 @@ size_t GfxRenderer::getBufferSize() { return EInkDisplay::BUFFER_SIZE; }
 
 void GfxRenderer::grayscaleRevert() const { einkDisplay.grayscaleRevert(); }
 
-void GfxRenderer::copyGrayscaleLsbBuffers() const { einkDisplay.copyGrayscaleLsbBuffers(einkDisplay.getFrameBuffer()); }
+void GfxRenderer::copyGrayscaleLsbBuffers() {
+  // Store a copy of the LSB buffer for screenshot capture before sending to display
+  const uint8_t* frameBuffer = einkDisplay.getFrameBuffer();
+  if (frameBuffer) {
+    for (size_t i = 0; i < BW_BUFFER_NUM_CHUNKS; i++) {
+      if (!lsbBufferChunks[i]) {
+        lsbBufferChunks[i] = static_cast<uint8_t*>(malloc(BW_BUFFER_CHUNK_SIZE));
+      }
+      if (lsbBufferChunks[i]) {
+        const size_t offset = i * BW_BUFFER_CHUNK_SIZE;
+        memcpy(lsbBufferChunks[i], frameBuffer + offset, BW_BUFFER_CHUNK_SIZE);
+      }
+    }
+  }
+  einkDisplay.copyGrayscaleLsbBuffers(einkDisplay.getFrameBuffer());
+}
 
-void GfxRenderer::copyGrayscaleMsbBuffers() const { einkDisplay.copyGrayscaleMsbBuffers(einkDisplay.getFrameBuffer()); }
+void GfxRenderer::copyGrayscaleMsbBuffers() {
+  // Store a copy of the MSB buffer for screenshot capture before sending to display
+  const uint8_t* frameBuffer = einkDisplay.getFrameBuffer();
+  if (frameBuffer) {
+    for (size_t i = 0; i < BW_BUFFER_NUM_CHUNKS; i++) {
+      if (!msbBufferChunks[i]) {
+        msbBufferChunks[i] = static_cast<uint8_t*>(malloc(BW_BUFFER_CHUNK_SIZE));
+      }
+      if (msbBufferChunks[i]) {
+        const size_t offset = i * BW_BUFFER_CHUNK_SIZE;
+        memcpy(msbBufferChunks[i], frameBuffer + offset, BW_BUFFER_CHUNK_SIZE);
+      }
+    }
+  }
+  einkDisplay.copyGrayscaleMsbBuffers(einkDisplay.getFrameBuffer());
+}
 
 void GfxRenderer::displayGrayBuffer() const { einkDisplay.displayGrayBuffer(); }
 
@@ -335,6 +365,30 @@ void GfxRenderer::freeBwBufferChunks() {
       bwBufferChunk = nullptr;
     }
   }
+}
+
+void GfxRenderer::freeLsbBufferChunks() {
+  for (auto& lsbBufferChunk : lsbBufferChunks) {
+    if (lsbBufferChunk) {
+      free(lsbBufferChunk);
+      lsbBufferChunk = nullptr;
+    }
+  }
+}
+
+void GfxRenderer::freeMsbBufferChunks() {
+  for (auto& msbBufferChunk : msbBufferChunks) {
+    if (msbBufferChunk) {
+      free(msbBufferChunk);
+      msbBufferChunk = nullptr;
+    }
+  }
+}
+
+void GfxRenderer::freeGrayscaleBuffers() {
+  freeBwBufferChunks();
+  freeLsbBufferChunks();
+  freeMsbBufferChunks();
 }
 
 /**
@@ -526,4 +580,74 @@ void GfxRenderer::getOrientedViewableTRBL(int* outTop, int* outRight, int* outBo
       *outLeft = VIEWABLE_MARGIN_TOP;
       break;
   }
+}
+
+bool GfxRenderer::hasGrayscaleBuffers() const {
+  // Check if all three buffer types have all chunks allocated
+  for (size_t i = 0; i < BW_BUFFER_NUM_CHUNKS; i++) {
+    if (!bwBufferChunks[i] || !lsbBufferChunks[i] || !msbBufferChunks[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Get the 2-bit grayscale value for a pixel at (x, y) in panel coordinates.
+ * Combines BW, LSB, and MSB buffers using the same logic as the display LUT.
+ *
+ * Grayscale encoding (based on lut_grayscale):
+ * - BW=1, MSB=X, LSB=X → White (3)
+ * - BW=0, MSB=0, LSB=0 → Black (0)
+ * - BW=0, MSB=0, LSB=1 → Dark Gray (1)
+ * - BW=0, MSB=1, LSB=0 → Light Gray (2)
+ * - BW=0, MSB=1, LSB=1 → Light Gray (2) - treated same as above
+ *
+ * Returns: 0=black, 1=dark gray, 2=light gray, 3=white
+ */
+bool GfxRenderer::getGrayscalePixel(const int x, const int y, uint8_t* outValue) const {
+  if (!hasGrayscaleBuffers()) {
+    return false;
+  }
+
+  // Bounds check
+  if (x < 0 || x >= EInkDisplay::DISPLAY_WIDTH || y < 0 || y >= EInkDisplay::DISPLAY_HEIGHT) {
+    return false;
+  }
+
+  // Calculate byte index and bit position
+  const uint16_t byteIndex = y * EInkDisplay::DISPLAY_WIDTH_BYTES + (x / 8);
+  const uint8_t bitPosition = 7 - (x % 8);  // MSB first
+
+  // Determine which chunk and offset within chunk
+  const size_t chunkIndex = byteIndex / BW_BUFFER_CHUNK_SIZE;
+  const size_t offsetInChunk = byteIndex % BW_BUFFER_CHUNK_SIZE;
+
+  // Get bit values from each buffer
+  // In framebuffer: 1 = white, 0 = black
+  // In grayscale LSB/MSB: 0 = no change, 1 = apply gray level
+  const uint8_t bwBit = (bwBufferChunks[chunkIndex][offsetInChunk] >> bitPosition) & 1;
+  const uint8_t lsbBit = (lsbBufferChunks[chunkIndex][offsetInChunk] >> bitPosition) & 1;
+  const uint8_t msbBit = (msbBufferChunks[chunkIndex][offsetInChunk] >> bitPosition) & 1;
+
+  // Combine to get grayscale value
+  // BW buffer: 1=white, 0=black (or gray if LSB/MSB indicate)
+  // LSB/MSB: inverted logic where 0=leave alone, 1=apply gray
+  if (bwBit == 1) {
+    // White pixel
+    *outValue = 3;
+  } else {
+    // Black or gray - check LSB/MSB
+    // lsbBit=1 means "make this dark gray"
+    // msbBit=1 means "make this light gray" (or lighter)
+    if (lsbBit == 0 && msbBit == 0) {
+      *outValue = 0;  // Black
+    } else if (lsbBit == 1 && msbBit == 0) {
+      *outValue = 1;  // Dark gray
+    } else {
+      *outValue = 2;  // Light gray (MSB=1)
+    }
+  }
+
+  return true;
 }

@@ -30,7 +30,11 @@ class GfxRenderer {
   RenderMode renderMode;
   Orientation orientation;
   uint8_t* bwBufferChunks[BW_BUFFER_NUM_CHUNKS] = {nullptr};
+  uint8_t* lsbBufferChunks[BW_BUFFER_NUM_CHUNKS] = {nullptr};
+  uint8_t* msbBufferChunks[BW_BUFFER_NUM_CHUNKS] = {nullptr};
   std::map<int, EpdFontFamily> fontMap;
+  void freeLsbBufferChunks();
+  void freeMsbBufferChunks();
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
                   EpdFontStyle style) const;
   void freeBwBufferChunks();
@@ -82,8 +86,8 @@ class GfxRenderer {
 
   // Grayscale functions
   void setRenderMode(const RenderMode mode) { this->renderMode = mode; }
-  void copyGrayscaleLsbBuffers() const;
-  void copyGrayscaleMsbBuffers() const;
+  void copyGrayscaleLsbBuffers();
+  void copyGrayscaleMsbBuffers();
   void displayGrayBuffer() const;
   bool storeBwBuffer();  // Returns true if buffer was stored successfully
   void restoreBwBuffer();
@@ -94,4 +98,9 @@ class GfxRenderer {
   static size_t getBufferSize();
   void grayscaleRevert() const;
   void getOrientedViewableTRBL(int* outTop, int* outRight, int* outBottom, int* outLeft) const;
+
+  // Grayscale screenshot support
+  bool hasGrayscaleBuffers() const;
+  bool getGrayscalePixel(int x, int y, uint8_t* outValue) const;  // Returns 2-bit value: 0=black, 1=dark, 2=light, 3=white
+  void freeGrayscaleBuffers();
 };

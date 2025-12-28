@@ -82,7 +82,6 @@ unsigned long t2 = 0;
 constexpr bool ENABLE_SCREENSHOT_CAPTURE = true;
 constexpr unsigned long SCREENSHOT_INTERVAL_MS = 10 * 1000;  // 10 seconds
 static unsigned long lastScreenshotTime = 0;
-static int screenshotCounter = 0;
 
 void exitActivity() {
   if (currentActivity) {
@@ -189,8 +188,8 @@ void setupDisplayAndFonts() {
   Serial.printf("[%lu] [   ] Fonts setup\n", millis());
 }
 
-// Save current framebuffer as 1-bit BMP to SD card
-void saveScreenshotBMP(const char* filename) {
+// Save current framebuffer as 1-bit BMP to SD card (fallback for non-grayscale)
+void saveScreenshotBMP_BW(const char* filename) {
   File bmpFile = SD.open(filename, FILE_WRITE);
   if (!bmpFile) {
     Serial.printf("[%lu] [SCR] Failed to open %s for writing\n", millis(), filename);
@@ -300,7 +299,155 @@ void saveScreenshotBMP(const char* filename) {
   bmpFile.write(frameBuffer, imageSize);
 
   bmpFile.close();
-  Serial.printf("[%lu] [SCR] Screenshot saved: %s (%d bytes)\n", millis(), filename, fileSize);
+  Serial.printf("[%lu] [SCR] BW Screenshot saved: %s (%d bytes)\n", millis(), filename, fileSize);
+}
+
+// Save 2-bit grayscale screenshot (4-level: black, dark gray, light gray, white)
+void saveScreenshotBMP_Grayscale(const char* filename) {
+  File bmpFile = SD.open(filename, FILE_WRITE);
+  if (!bmpFile) {
+    Serial.printf("[%lu] [SCR] Failed to open %s for writing\n", millis(), filename);
+    return;
+  }
+
+  // Display dimensions (physical buffer is 800x480)
+  constexpr int width = 800;
+  constexpr int height = 480;
+  // 2-bit = 4 pixels per byte, row must be 4-byte aligned
+  constexpr int bytesPerRow = ((width * 2 + 31) / 32) * 4;  // 200 bytes per row
+  constexpr int imageSize = bytesPerRow * height;
+  constexpr int paletteSize = 16;  // 4 colors * 4 bytes
+  constexpr int headerSize = 14;   // BMP file header
+  constexpr int dibSize = 40;      // BITMAPINFOHEADER
+  constexpr int pixelOffset = headerSize + dibSize + paletteSize;
+  constexpr int fileSize = pixelOffset + imageSize;
+
+  // BMP File Header (14 bytes)
+  bmpFile.write('B');
+  bmpFile.write('M');
+  // File size (little-endian)
+  bmpFile.write(fileSize & 0xFF);
+  bmpFile.write((fileSize >> 8) & 0xFF);
+  bmpFile.write((fileSize >> 16) & 0xFF);
+  bmpFile.write((fileSize >> 24) & 0xFF);
+  // Reserved
+  bmpFile.write((uint8_t)0);
+  bmpFile.write((uint8_t)0);
+  bmpFile.write((uint8_t)0);
+  bmpFile.write((uint8_t)0);
+  // Pixel data offset
+  bmpFile.write(pixelOffset & 0xFF);
+  bmpFile.write((pixelOffset >> 8) & 0xFF);
+  bmpFile.write((pixelOffset >> 16) & 0xFF);
+  bmpFile.write((pixelOffset >> 24) & 0xFF);
+
+  // DIB Header - BITMAPINFOHEADER (40 bytes)
+  // Header size
+  bmpFile.write((uint8_t)40);
+  bmpFile.write((uint8_t)0);
+  bmpFile.write((uint8_t)0);
+  bmpFile.write((uint8_t)0);
+  // Width
+  bmpFile.write(width & 0xFF);
+  bmpFile.write((width >> 8) & 0xFF);
+  bmpFile.write((width >> 16) & 0xFF);
+  bmpFile.write((width >> 24) & 0xFF);
+  // Height (negative for top-down)
+  int32_t negHeight = -height;
+  bmpFile.write(negHeight & 0xFF);
+  bmpFile.write((negHeight >> 8) & 0xFF);
+  bmpFile.write((negHeight >> 16) & 0xFF);
+  bmpFile.write((negHeight >> 24) & 0xFF);
+  // Planes
+  bmpFile.write((uint8_t)1);
+  bmpFile.write((uint8_t)0);
+  // Bits per pixel (2-bit)
+  bmpFile.write((uint8_t)2);
+  bmpFile.write((uint8_t)0);
+  // Compression (none)
+  bmpFile.write((uint8_t)0);
+  bmpFile.write((uint8_t)0);
+  bmpFile.write((uint8_t)0);
+  bmpFile.write((uint8_t)0);
+  // Image size
+  bmpFile.write(imageSize & 0xFF);
+  bmpFile.write((imageSize >> 8) & 0xFF);
+  bmpFile.write((imageSize >> 16) & 0xFF);
+  bmpFile.write((imageSize >> 24) & 0xFF);
+  // X pixels per meter (72 DPI = 2835)
+  bmpFile.write((uint8_t)0x13);
+  bmpFile.write((uint8_t)0x0B);
+  bmpFile.write((uint8_t)0);
+  bmpFile.write((uint8_t)0);
+  // Y pixels per meter
+  bmpFile.write((uint8_t)0x13);
+  bmpFile.write((uint8_t)0x0B);
+  bmpFile.write((uint8_t)0);
+  bmpFile.write((uint8_t)0);
+  // Colors used
+  bmpFile.write((uint8_t)4);
+  bmpFile.write((uint8_t)0);
+  bmpFile.write((uint8_t)0);
+  bmpFile.write((uint8_t)0);
+  // Colors important
+  bmpFile.write((uint8_t)4);
+  bmpFile.write((uint8_t)0);
+  bmpFile.write((uint8_t)0);
+  bmpFile.write((uint8_t)0);
+
+  // Color Palette (4 colors * 4 bytes = 16 bytes) - BGRA format
+  // Palette index 0: Black
+  bmpFile.write((uint8_t)0x00);
+  bmpFile.write((uint8_t)0x00);
+  bmpFile.write((uint8_t)0x00);
+  bmpFile.write((uint8_t)0x00);
+  // Palette index 1: Dark Gray
+  bmpFile.write((uint8_t)0x55);
+  bmpFile.write((uint8_t)0x55);
+  bmpFile.write((uint8_t)0x55);
+  bmpFile.write((uint8_t)0x00);
+  // Palette index 2: Light Gray
+  bmpFile.write((uint8_t)0xAA);
+  bmpFile.write((uint8_t)0xAA);
+  bmpFile.write((uint8_t)0xAA);
+  bmpFile.write((uint8_t)0x00);
+  // Palette index 3: White
+  bmpFile.write((uint8_t)0xFF);
+  bmpFile.write((uint8_t)0xFF);
+  bmpFile.write((uint8_t)0xFF);
+  bmpFile.write((uint8_t)0x00);
+
+  // Write pixel data row by row
+  // 2-bit BMP: 4 pixels per byte, MSB first (first pixel in bits 7-6)
+  uint8_t rowBuffer[bytesPerRow];
+
+  for (int y = 0; y < height; y++) {
+    memset(rowBuffer, 0, bytesPerRow);
+
+    for (int x = 0; x < width; x++) {
+      uint8_t grayValue = 3;  // Default to white
+      renderer.getGrayscalePixel(x, y, &grayValue);
+
+      // Pack 2-bit value into byte (MSB first)
+      const int byteIdx = x / 4;
+      const int bitShift = 6 - ((x % 4) * 2);  // 6, 4, 2, 0
+      rowBuffer[byteIdx] |= (grayValue << bitShift);
+    }
+
+    bmpFile.write(rowBuffer, bytesPerRow);
+  }
+
+  bmpFile.close();
+  Serial.printf("[%lu] [SCR] Grayscale screenshot saved: %s (%d bytes)\n", millis(), filename, fileSize);
+}
+
+// Save screenshot - uses grayscale if available, otherwise falls back to BW
+void saveScreenshotBMP(const char* filename) {
+  if (renderer.hasGrayscaleBuffers()) {
+    saveScreenshotBMP_Grayscale(filename);
+  } else {
+    saveScreenshotBMP_BW(filename);
+  }
 }
 
 void setup() {
@@ -371,8 +518,9 @@ void loop() {
 
   // Screenshot capture every 10 seconds
   if (ENABLE_SCREENSHOT_CAPTURE && millis() - lastScreenshotTime >= SCREENSHOT_INTERVAL_MS) {
-    char filename[32];
-    snprintf(filename, sizeof(filename), "/screenshots/scr_%04d.bmp", screenshotCounter++);
+    // Use millis() timestamp for filename (e.g., scr_12345678.bmp)
+    char filename[40];
+    snprintf(filename, sizeof(filename), "/screenshots/scr_%lu.bmp", millis());
 
     // Ensure screenshots directory exists
     if (!SD.exists("/screenshots")) {
