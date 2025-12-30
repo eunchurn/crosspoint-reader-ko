@@ -5,6 +5,7 @@
 #include <InputManager.h>
 #include <SDCardManager.h>
 #include <SPI.h>
+#include <SdFontFamily.h>
 #include <builtinFonts/all.h>
 
 #include "Battery.h"
@@ -39,92 +40,69 @@ MappedInputManager mappedInputManager(inputManager);
 GfxRenderer renderer(einkDisplay);
 Activity* currentActivity;
 
-// Fonts
-EpdFont bookerly12RegularFont(&bookerly_12_regular);
-EpdFont bookerly12BoldFont(&bookerly_12_bold);
-EpdFont bookerly12ItalicFont(&bookerly_12_italic);
-EpdFont bookerly12BoldItalicFont(&bookerly_12_bolditalic);
-EpdFontFamily bookerly12FontFamily(&bookerly12RegularFont, &bookerly12BoldFont, &bookerly12ItalicFont,
-                                   &bookerly12BoldItalicFont);
-EpdFont bookerly14RegularFont(&bookerly_14_regular);
-EpdFont bookerly14BoldFont(&bookerly_14_bold);
-EpdFont bookerly14ItalicFont(&bookerly_14_italic);
-EpdFont bookerly14BoldItalicFont(&bookerly_14_bolditalic);
-EpdFontFamily bookerly14FontFamily(&bookerly14RegularFont, &bookerly14BoldFont, &bookerly14ItalicFont,
-                                   &bookerly14BoldItalicFont);
-EpdFont bookerly16RegularFont(&bookerly_16_regular);
-EpdFont bookerly16BoldFont(&bookerly_16_bold);
-EpdFont bookerly16ItalicFont(&bookerly_16_italic);
-EpdFont bookerly16BoldItalicFont(&bookerly_16_bolditalic);
-EpdFontFamily bookerly16FontFamily(&bookerly16RegularFont, &bookerly16BoldFont, &bookerly16ItalicFont,
-                                   &bookerly16BoldItalicFont);
-EpdFont bookerly18RegularFont(&bookerly_18_regular);
-EpdFont bookerly18BoldFont(&bookerly_18_bold);
-EpdFont bookerly18ItalicFont(&bookerly_18_italic);
-EpdFont bookerly18BoldItalicFont(&bookerly_18_bolditalic);
-EpdFontFamily bookerly18FontFamily(&bookerly18RegularFont, &bookerly18BoldFont, &bookerly18ItalicFont,
-                                   &bookerly18BoldItalicFont);
+// UI Font (Pretendard 10pt)
+EpdFont pretendard10RegularFont(&pretendard_10_regular);
+EpdFont pretendard10BoldFont(&pretendard_10_bold);
+EpdFontFamily uiFontFamily(&pretendard10RegularFont, &pretendard10BoldFont);
 
-EpdFont notosans12RegularFont(&notosans_12_regular);
-EpdFont notosans12BoldFont(&notosans_12_bold);
-EpdFont notosans12ItalicFont(&notosans_12_italic);
-EpdFont notosans12BoldItalicFont(&notosans_12_bolditalic);
-EpdFontFamily notosans12FontFamily(&notosans12RegularFont, &notosans12BoldFont, &notosans12ItalicFont,
-                                   &notosans12BoldItalicFont);
-EpdFont notosans14RegularFont(&notosans_14_regular);
-EpdFont notosans14BoldFont(&notosans_14_bold);
-EpdFont notosans14ItalicFont(&notosans_14_italic);
-EpdFont notosans14BoldItalicFont(&notosans_14_bolditalic);
-EpdFontFamily notosans14FontFamily(&notosans14RegularFont, &notosans14BoldFont, &notosans14ItalicFont,
-                                   &notosans14BoldItalicFont);
-EpdFont notosans16RegularFont(&notosans_16_regular);
-EpdFont notosans16BoldFont(&notosans_16_bold);
-EpdFont notosans16ItalicFont(&notosans_16_italic);
-EpdFont notosans16BoldItalicFont(&notosans_16_bolditalic);
-EpdFontFamily notosans16FontFamily(&notosans16RegularFont, &notosans16BoldFont, &notosans16ItalicFont,
-                                   &notosans16BoldItalicFont);
-EpdFont notosans18RegularFont(&notosans_18_regular);
-EpdFont notosans18BoldFont(&notosans_18_bold);
-EpdFont notosans18ItalicFont(&notosans_18_italic);
-EpdFont notosans18BoldItalicFont(&notosans_18_bolditalic);
-EpdFontFamily notosans18FontFamily(&notosans18RegularFont, &notosans18BoldFont, &notosans18ItalicFont,
-                                   &notosans18BoldItalicFont);
+// Korean EPUB reader font (Eulyoo 14pt)
+EpdFont eulyoo14RegularFont(&eulyoo_14_regular);
+EpdFont eulyoo14BoldFont(&eulyoo_14_bold);
+EpdFontFamily eulyoo14FontFamily(&eulyoo14RegularFont, &eulyoo14BoldFont);
 
-EpdFont opendyslexic8RegularFont(&opendyslexic_8_regular);
-EpdFont opendyslexic8BoldFont(&opendyslexic_8_bold);
-EpdFont opendyslexic8ItalicFont(&opendyslexic_8_italic);
-EpdFont opendyslexic8BoldItalicFont(&opendyslexic_8_bolditalic);
-EpdFontFamily opendyslexic8FontFamily(&opendyslexic8RegularFont, &opendyslexic8BoldFont, &opendyslexic8ItalicFont,
-                                      &opendyslexic8BoldItalicFont);
-EpdFont opendyslexic10RegularFont(&opendyslexic_10_regular);
-EpdFont opendyslexic10BoldFont(&opendyslexic_10_bold);
-EpdFont opendyslexic10ItalicFont(&opendyslexic_10_italic);
-EpdFont opendyslexic10BoldItalicFont(&opendyslexic_10_bolditalic);
-EpdFontFamily opendyslexic10FontFamily(&opendyslexic10RegularFont, &opendyslexic10BoldFont, &opendyslexic10ItalicFont,
-                                       &opendyslexic10BoldItalicFont);
-EpdFont opendyslexic12RegularFont(&opendyslexic_12_regular);
-EpdFont opendyslexic12BoldFont(&opendyslexic_12_bold);
-EpdFont opendyslexic12ItalicFont(&opendyslexic_12_italic);
-EpdFont opendyslexic12BoldItalicFont(&opendyslexic_12_bolditalic);
-EpdFontFamily opendyslexic12FontFamily(&opendyslexic12RegularFont, &opendyslexic12BoldFont, &opendyslexic12ItalicFont,
-                                       &opendyslexic12BoldItalicFont);
-EpdFont opendyslexic14RegularFont(&opendyslexic_14_regular);
-EpdFont opendyslexic14BoldFont(&opendyslexic_14_bold);
-EpdFont opendyslexic14ItalicFont(&opendyslexic_14_italic);
-EpdFont opendyslexic14BoldItalicFont(&opendyslexic_14_bolditalic);
-EpdFontFamily opendyslexic14FontFamily(&opendyslexic14RegularFont, &opendyslexic14BoldFont, &opendyslexic14ItalicFont,
-                                       &opendyslexic14BoldItalicFont);
+// Korean fonts loading from SD card is disabled due to memory constraints
+// Font files should be in /.crosspoint/fonts/ directory
+constexpr char FONT_DIR[] = "/.crosspoint/fonts";
 
-EpdFont smallFont(&notosans_8_regular);
-EpdFontFamily smallFontFamily(&smallFont);
+// Helper function to safely load an SD font with comprehensive error handling
+// Returns true if loading succeeded
+bool trySdFontLoad(GfxRenderer& renderer, int fontId, const char* name,
+                   const char* regularPath, const char* boldPath = nullptr) {
+  // First check if the file exists before attempting to create SdFontFamily
+  if (!SdMan.exists(regularPath)) {
+    Serial.printf("[%lu] [FNT] %s not found: %s\n", millis(), name, regularPath);
+    return false;
+  }
 
-EpdFont ui10RegularFont(&ubuntu_10_regular);
-EpdFont ui10BoldFont(&ubuntu_10_bold);
-EpdFontFamily ui10FontFamily(&ui10RegularFont, &ui10BoldFont);
+  SdFontFamily* font = nullptr;
+  bool success = false;
 
-EpdFont ui12RegularFont(&ubuntu_12_regular);
-EpdFont ui12BoldFont(&ubuntu_12_bold);
-EpdFontFamily ui12FontFamily(&ui12RegularFont, &ui12BoldFont);
+  // Create font family - use regular new since ESP32 doesn't always support nothrow
+  font = new SdFontFamily(regularPath, boldPath);
+  if (font == nullptr) {
+    Serial.printf("[%lu] [FNT] Failed to allocate memory for %s\n", millis(), name);
+    return false;
+  }
+
+  if (font->load()) {
+    renderer.insertSdFont(fontId, font);
+    Serial.printf("[%lu] [FNT] Loaded %s from SD\n", millis(), name);
+    success = true;
+  } else {
+    Serial.printf("[%lu] [FNT] Failed to load %s\n", millis(), name);
+    delete font;
+  }
+
+  return success;
+}
+
+// Track which SD fonts were successfully loaded
+static bool sdFontsLoaded[6] = {false, false, false, false, false, false};
+enum SdFontIndex {
+  SD_PRETENDARD_10 = 0,
+  SD_PRETENDARD_12 = 1,
+  SD_EULYOO_12 = 2,
+  SD_EULYOO_14 = 3,
+  SD_EULYOO_16 = 4,
+  SD_EULYOO_18 = 5
+};
+
+// SD font loading is disabled - Korean fonts need to be embedded in flash
+// due to ESP32-C3 memory constraints. SD card loading causes crashes.
+void loadSdFonts(GfxRenderer& /*renderer*/) {
+  // SD font loading disabled - use flash-embedded fonts instead
+  Serial.printf("[%lu] [FNT] SD font loading disabled (use flash fonts)\n", millis());
+}
 
 // measurement of power button press duration calibration value
 unsigned long t1 = 0;
@@ -231,22 +209,21 @@ void onGoHome() {
 void setupDisplayAndFonts() {
   einkDisplay.begin();
   Serial.printf("[%lu] [   ] Display initialized\n", millis());
-  renderer.insertFont(BOOKERLY_12_FONT_ID, bookerly12FontFamily);
-  renderer.insertFont(BOOKERLY_14_FONT_ID, bookerly14FontFamily);
-  renderer.insertFont(BOOKERLY_16_FONT_ID, bookerly16FontFamily);
-  renderer.insertFont(BOOKERLY_18_FONT_ID, bookerly18FontFamily);
-  renderer.insertFont(NOTOSANS_12_FONT_ID, notosans12FontFamily);
-  renderer.insertFont(NOTOSANS_14_FONT_ID, notosans14FontFamily);
-  renderer.insertFont(NOTOSANS_16_FONT_ID, notosans16FontFamily);
-  renderer.insertFont(NOTOSANS_18_FONT_ID, notosans18FontFamily);
-  renderer.insertFont(OPENDYSLEXIC_8_FONT_ID, opendyslexic8FontFamily);
-  renderer.insertFont(OPENDYSLEXIC_10_FONT_ID, opendyslexic10FontFamily);
-  renderer.insertFont(OPENDYSLEXIC_12_FONT_ID, opendyslexic12FontFamily);
-  renderer.insertFont(OPENDYSLEXIC_14_FONT_ID, opendyslexic14FontFamily);
-  renderer.insertFont(UI_10_FONT_ID, ui10FontFamily);
-  renderer.insertFont(UI_12_FONT_ID, ui12FontFamily);
-  renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
-  Serial.printf("[%lu] [   ] Fonts setup\n", millis());
+
+  // UI font (Pretendard 10pt)
+  renderer.insertFont(UI_FONT_ID, &uiFontFamily);
+  renderer.insertFont(SMALL_FONT_ID, &uiFontFamily);
+
+  // Korean EPUB reader font (Eulyoo 14pt)
+  renderer.insertFont(EULYOO_14_FONT_ID, &eulyoo14FontFamily);
+
+  // Set fallback font to Pretendard UI
+  renderer.setFallbackFont(UI_FONT_ID);
+
+  // SD card fonts loading disabled due to memory constraints
+  loadSdFonts(renderer);
+
+  Serial.printf("[%lu] [   ] Fonts setup complete\n", millis());
 }
 
 void setup() {
