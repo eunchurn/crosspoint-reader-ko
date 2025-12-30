@@ -10,9 +10,8 @@
 CrossPointSettings CrossPointSettings::instance;
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 1;
-// Increment this when adding new persisted settings fields
-constexpr uint8_t SETTINGS_COUNT = 10;
+constexpr uint8_t SETTINGS_FILE_VERSION = 3;  // Incremented for Korean-only version
+constexpr uint8_t SETTINGS_COUNT = 8;
 constexpr char SETTINGS_FILE[] = "/.crosspoint/settings.bin";
 }  // namespace
 
@@ -34,8 +33,6 @@ bool CrossPointSettings::saveToFile() const {
   serialization::writePod(outputFile, orientation);
   serialization::writePod(outputFile, frontButtonLayout);
   serialization::writePod(outputFile, sideButtonLayout);
-  serialization::writePod(outputFile, fontFamily);
-  serialization::writePod(outputFile, fontSize);
   serialization::writePod(outputFile, lineSpacing);
   outputFile.close();
 
@@ -51,7 +48,9 @@ bool CrossPointSettings::loadFromFile() {
 
   uint8_t version;
   serialization::readPod(inputFile, version);
-  if (version != SETTINGS_FILE_VERSION) {
+
+  // Handle different versions - accept version 1, 2, 3
+  if (version < 1 || version > 3) {
     Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u\n", millis(), version);
     inputFile.close();
     return false;
@@ -77,12 +76,25 @@ bool CrossPointSettings::loadFromFile() {
     if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, sideButtonLayout);
     if (++settingsRead >= fileSettingsCount) break;
-    serialization::readPod(inputFile, fontFamily);
-    if (++settingsRead >= fileSettingsCount) break;
-    serialization::readPod(inputFile, fontSize);
-    if (++settingsRead >= fileSettingsCount) break;
+
+    // Skip fontFamily and fontSize from older versions
+    if (version == 1) {
+      uint8_t dummy;
+      serialization::readPod(inputFile, dummy);  // fontFamily (ignored)
+      if (++settingsRead >= fileSettingsCount) break;
+      serialization::readPod(inputFile, dummy);  // fontSize (ignored)
+      if (++settingsRead >= fileSettingsCount) break;
+    }
+
     serialization::readPod(inputFile, lineSpacing);
     if (++settingsRead >= fileSettingsCount) break;
+
+    // Skip systemFontFamily from version 2
+    if (version == 2) {
+      uint8_t dummy;
+      serialization::readPod(inputFile, dummy);  // systemFontFamily (ignored)
+      if (++settingsRead >= fileSettingsCount) break;
+    }
   } while (false);
 
   inputFile.close();
@@ -91,79 +103,24 @@ bool CrossPointSettings::loadFromFile() {
 }
 
 float CrossPointSettings::getReaderLineCompression() const {
-  switch (fontFamily) {
-    case BOOKERLY:
+  // Fixed to Eulyoo 14pt font
+  switch (lineSpacing) {
+    case TIGHT:
+      return 1.00f;
+    case NORMAL:
     default:
-      switch (lineSpacing) {
-        case TIGHT:
-          return 0.95f;
-        case NORMAL:
-        default:
-          return 1.0f;
-        case WIDE:
-          return 1.1f;
-      }
-    case NOTOSANS:
-      switch (lineSpacing) {
-        case TIGHT:
-          return 0.90f;
-        case NORMAL:
-        default:
-          return 0.95f;
-        case WIDE:
-          return 1.0f;
-      }
-    case OPENDYSLEXIC:
-      switch (lineSpacing) {
-        case TIGHT:
-          return 0.90f;
-        case NORMAL:
-        default:
-          return 0.95f;
-        case WIDE:
-          return 1.0f;
-      }
+      return 1.20f;
+    case WIDE:
+      return 1.40f;
   }
 }
 
 int CrossPointSettings::getReaderFontId() const {
-  switch (fontFamily) {
-    case BOOKERLY:
-    default:
-      switch (fontSize) {
-        case SMALL:
-          return BOOKERLY_12_FONT_ID;
-        case MEDIUM:
-        default:
-          return BOOKERLY_14_FONT_ID;
-        case LARGE:
-          return BOOKERLY_16_FONT_ID;
-        case EXTRA_LARGE:
-          return BOOKERLY_18_FONT_ID;
-      }
-    case NOTOSANS:
-      switch (fontSize) {
-        case SMALL:
-          return NOTOSANS_12_FONT_ID;
-        case MEDIUM:
-        default:
-          return NOTOSANS_14_FONT_ID;
-        case LARGE:
-          return NOTOSANS_16_FONT_ID;
-        case EXTRA_LARGE:
-          return NOTOSANS_18_FONT_ID;
-      }
-    case OPENDYSLEXIC:
-      switch (fontSize) {
-        case SMALL:
-          return OPENDYSLEXIC_8_FONT_ID;
-        case MEDIUM:
-        default:
-          return OPENDYSLEXIC_10_FONT_ID;
-        case LARGE:
-          return OPENDYSLEXIC_12_FONT_ID;
-        case EXTRA_LARGE:
-          return OPENDYSLEXIC_14_FONT_ID;
-      }
-  }
+  // Fixed to Eulyoo 14pt for Korean reader
+  return EULYOO_14_FONT_ID;
+}
+
+int CrossPointSettings::getUiFontId() const {
+  // Fixed to Pretendard 10pt
+  return UI_FONT_ID;
 }

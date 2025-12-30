@@ -135,3 +135,45 @@ ruby -rdigest -e 'puts [
   "./notosans_8_regular.h",
 ].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
 ))"
+
+echo "#define PRETENDARD_UI_10_FONT_ID ($(
+ruby -rdigest -e 'puts [
+  "./pretendard_10_regular.h",
+  "./pretendard_10_bold.h",
+].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
+))"
+
+echo "#define PRETENDARD_UI_12_FONT_ID ($(
+ruby -rdigest -e 'puts [
+  "./pretendard_12_regular.h",
+  "./pretendard_12_bold.h",
+].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
+))"
+
+echo "#define EULYOO_12_FONT_ID ($(
+ruby -rdigest -e 'puts [
+  "./eulyoo_12_regular.h",
+  "./eulyoo_12_semibold.h",
+].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
+))"
+
+echo "#define EULYOO_14_FONT_ID ($(
+ruby -rdigest -e 'puts [
+  "./eulyoo_14_regular.h",
+  "./eulyoo_14_semibold.h",
+].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
+))"
+
+echo "#define EULYOO_16_FONT_ID ($(
+ruby -rdigest -e 'puts [
+  "./eulyoo_16_regular.h",
+  "./eulyoo_16_semibold.h",
+].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
+))"
+
+echo "#define EULYOO_18_FONT_ID ($(
+ruby -rdigest -e 'puts [
+  "./eulyoo_18_regular.h",
+  "./eulyoo_18_semibold.h",
+].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
+))"
