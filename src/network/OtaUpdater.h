@@ -24,6 +24,7 @@ class OtaUpdater {
 
   OtaUpdater() = default;
   bool isUpdateNewer() const;
+  bool isUpdateNewerKO() const;
   const std::string& getLatestVersion() const;
   OtaUpdaterError checkForUpdate();
   OtaUpdaterError installUpdate(const std::function<void(size_t, size_t)>& onProgress);

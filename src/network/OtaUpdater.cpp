@@ -5,7 +5,7 @@
 #include <Update.h>
 
 namespace {
-constexpr char latestReleaseUrl[] = "https://api.github.com/repos/daveallie/crosspoint-reader/releases/latest";
+constexpr char latestReleaseUrl[] = "https://api.github.com/repos/eunchurn/crosspoint-reader-ko/releases/latest";
 }
 
 OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
@@ -25,14 +25,16 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
     return HTTP_ERROR;
   }
 
+  const String payload = http.getString();
+  http.end();
+
   JsonDocument doc;
   JsonDocument filter;
   filter["tag_name"] = true;
   filter["assets"][0]["name"] = true;
   filter["assets"][0]["browser_download_url"] = true;
   filter["assets"][0]["size"] = true;
-  const DeserializationError error = deserializeJson(doc, *client, DeserializationOption::Filter(filter));
-  http.end();
+  const DeserializationError error = deserializeJson(doc, payload, DeserializationOption::Filter(filter));
   if (error) {
     Serial.printf("[%lu] [OTA] JSON parse failed: %s\n", millis(), error.c_str());
     return JSON_PARSE_ERROR;
@@ -104,8 +106,53 @@ bool OtaUpdater::isUpdateNewer() const {
 
 const std::string& OtaUpdater::getLatestVersion() const { return latestVersion; }
 
+bool OtaUpdater::isUpdateNewerKO() {
+  if (!updateAvailable || latestVersion.empty() || latestVersion == CROSSPOINT_VERSION) {
+    return false;
+  }
+
+  // Parse version: major.minor.patch-ko.koVersion
+  auto parseVersion = [](const std::string& version, int& major, int& minor, int& patch, int& ko) {
+    major = minor = patch = ko = 0;
+
+    // Find -ko. suffix
+    size_t koPos = version.find("-ko.");
+    std::string baseVersion = (koPos != std::string::npos) ? version.substr(0, koPos) : version;
+
+    // Parse ko version if present
+    if (koPos != std::string::npos) {
+      ko = stoi(version.substr(koPos + 4));
+    }
+
+    // Parse major.minor.patch
+    size_t firstDot = baseVersion.find('.');
+    size_t lastDot = baseVersion.find_last_of('.');
+
+    if (firstDot != std::string::npos) {
+      major = stoi(baseVersion.substr(0, firstDot));
+      if (lastDot != firstDot) {
+        minor = stoi(baseVersion.substr(firstDot + 1, lastDot - firstDot - 1));
+        patch = stoi(baseVersion.substr(lastDot + 1));
+      } else {
+        minor = stoi(baseVersion.substr(firstDot + 1));
+      }
+    }
+  };
+
+  int updateMajor, updateMinor, updatePatch, updateKo;
+  int currentMajor, currentMinor, currentPatch, currentKo;
+
+  parseVersion(latestVersion, updateMajor, updateMinor, updatePatch, updateKo);
+  parseVersion(CROSSPOINT_VERSION, currentMajor, currentMinor, currentPatch, currentKo);
+
+  if (updateMajor != currentMajor) return updateMajor > currentMajor;
+  if (updateMinor != currentMinor) return updateMinor > currentMinor;
+  if (updatePatch != currentPatch) return updatePatch > currentPatch;
+  return updateKo > currentKo;
+}
+
 OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate(const std::function<void(size_t, size_t)>& onProgress) {
-  if (!isUpdateNewer()) {
+  if (!isUpdateNewerKO()) {
     return UPDATE_OLDER_ERROR;
   }
 
