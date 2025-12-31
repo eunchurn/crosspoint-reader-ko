@@ -7,9 +7,12 @@
 
 namespace {
 constexpr int MENU_ITEM_COUNT = 2;
-const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Create Hotspot"};
-const char* MENU_DESCRIPTIONS[MENU_ITEM_COUNT] = {"Connect to an existing WiFi network",
-                                                  "Create a WiFi network others can join"};
+// const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Create Hotspot"};
+const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"네트워크에 연결", "핫스팟 생성"};
+// const char* MENU_DESCRIPTIONS[MENU_ITEM_COUNT] = {"Connect to an existing WiFi network",
+//                                                   "Create a WiFi network others can join"};
+const char* MENU_DESCRIPTIONS[MENU_ITEM_COUNT] = {"기존 WiFi 네트워크에 연결",
+                                                  "다른 사용자가 연결할 수 있는 WiFi 네트워크 생성"};
 }  // namespace
 
 void NetworkModeSelectionActivity::taskTrampoline(void* param) {
@@ -97,10 +100,12 @@ void NetworkModeSelectionActivity::render() const {
   const auto pageHeight = renderer.getScreenHeight();
 
   // Draw header
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, "File Transfer", true, EpdFontFamily::BOLD);
+  // renderer.drawCenteredText(UI_12_FONT_ID, 15, "File Transfer", true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 15, "파일 전송", true, EpdFontFamily::BOLD);
 
   // Draw subtitle
-  renderer.drawCenteredText(UI_10_FONT_ID, 50, "How would you like to connect?");
+  // renderer.drawCenteredText(UI_10_FONT_ID, 50, "How would you like to connect?");
+  renderer.drawCenteredText(UI_10_FONT_ID, 50, "어떻게 연결하시겠습니까?");
 
   // Draw menu items centered on screen
   constexpr int itemHeight = 50;  // Height for each menu item (including description)
@@ -112,7 +117,7 @@ void NetworkModeSelectionActivity::render() const {
 
     // Draw selection highlight (black fill) for selected item
     if (isSelected) {
-      renderer.fillRect(20, itemY - 2, pageWidth - 40, itemHeight - 6);
+      renderer.fillRect(20, itemY - 4, pageWidth - 40, itemHeight);
     }
 
     // Draw text: black=false (white text) when selected (on black background)
@@ -122,7 +127,8 @@ void NetworkModeSelectionActivity::render() const {
   }
 
   // Draw help text at bottom
-  const auto labels = mappedInput.mapLabels("« Back", "Select", "", "");
+  // const auto labels = mappedInput.mapLabels("« Back", "Select", "", "");
+  const auto labels = mappedInput.mapLabels("« 뒤로", "선택", "", "");
   renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
