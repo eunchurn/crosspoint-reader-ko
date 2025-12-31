@@ -2,39 +2,71 @@ name: Compile Release
 on:
   push:
     tags:
-      - '*'
+    - '*'
 
 jobs:
   build-release:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: recursive
-      - uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cache/pip
-            ~/.platformio/.cache
-          key: ${{ runner.os }}-pio
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.14'
+    - uses: actions/checkout@v6
+      with:
+        submodules: recursive
+    - uses: actions/cache@v5
+      with:
+        path: |
+          ~/.cache/pip
+          ~/.platformio/.cache
+        key: ${{ runner.os }}-pio
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.14'
 
-      - name: Install PlatformIO Core
-        run: pip install --upgrade platformio
+    - name: Install PlatformIO Core
+      run: pip install --upgrade platformio
 
-      - name: Build CrossPoint
-        run: pio run -e gh_release
+    - name: Set version from tag
+      run: |
+        sed -i "s/^crosspoint_version = .*/crosspoint_version = ${{ github.ref_name }}/" platformio.ini
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: CrossPoint-${{ github.ref_name }}
-          path: |
-            .pio/build/gh_release/bootloader.bin
-            .pio/build/gh_release/firmware.bin
-            .pio/build/gh_release/firmware.elf
-            .pio/build/gh_release/firmware.map
-            .pio/build/gh_release/partitions.bin
+    - name: Build CrossPoint
+      run: pio run -e gh_release
+
+    - name: Merge firmware binaries
+      run: |
+        python ~/.platformio/packages/tool-esptoolpy/esptool.py --chip esp32c3 merge_bin \
+          -o .pio/build/gh_release/CrossPoint-${{ github.ref_name }}.bin \
+          --flash_mode dio \
+          --flash_freq 80m \
+          --flash_size 16MB \
+          0x0 .pio/build/gh_release/bootloader.bin \
+          0x8000 .pio/build/gh_release/partitions.bin \
+          0x10000 .pio/build/gh_release/firmware.bin
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: CrossPoint-${{ github.ref_name }}
+        path: |
+          .pio/build/gh_release/bootloader.bin
+          .pio/build/gh_release/firmware.bin
+          .pio/build/gh_release/firmware.elf
+          .pio/build/gh_release/firmware.map
+          .pio/build/gh_release/partitions.bin
+
+    - name: Create Release with Assets
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          .pio/build/gh_release/CrossPoint-${{ github.ref_name }}.bin
+          .pio/build/gh_release/firmware.bin
+          .pio/build/gh_release/bootloader.bin
+          .pio/build/gh_release/partitions.bin
+        generate_release_notes: false
+        draft: false
+        prerelease: false
+
+    - name: Trigger docs deployment
+      run: gh workflow run deploy.yml -R eunchurn/crosspoint-reader-docs
+      env:
+        GH_TOKEN: ${{ secrets.DOCS_DEPLOY_TOKEN }}

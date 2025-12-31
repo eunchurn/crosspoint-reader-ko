@@ -12,24 +12,42 @@ namespace {
 constexpr int settingsCount = 9;
 const SettingInfo settingsList[settingsCount] = {
     // Should match with SLEEP_SCREEN_MODE
-    {"Sleep Screen", SettingType::ENUM, &CrossPointSettings::sleepScreen, {"Dark", "Light", "Custom", "Cover"}},
-    {"Status Bar", SettingType::ENUM, &CrossPointSettings::statusBar, {"None", "No Progress", "Full"}},
-    {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing, {}},
-    {"Short Power Button Click", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn, {}},
-    {"Reading Orientation",
+    // {"Sleep Screen", SettingType::ENUM, &CrossPointSettings::sleepScreen, {"Dark", "Light", "Custom", "Cover"}},
+    {"잠금 화면", SettingType::ENUM, &CrossPointSettings::sleepScreen, {"어두운", "밝은", "사용자 정의", "커버"}},
+    // {"Status Bar", SettingType::ENUM, &CrossPointSettings::statusBar, {"None", "No Progress", "Full"}},
+    {"상태 표시줄", SettingType::ENUM, &CrossPointSettings::statusBar, {"없음", "진행 없음", "전체"}},
+    // {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing, {}},
+    {"문단 간격 추가", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing, {}},
+    // {"Short Power Button Click", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn, {}},
+    {"짧은 전원 버튼 클릭", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn, {}},
+    // {"Reading Orientation",
+    //  SettingType::ENUM,
+    //  &CrossPointSettings::orientation,
+    //  {"Portrait", "Landscape CW", "Inverted", "Landscape CCW"}},
+    {"읽기 방향",
      SettingType::ENUM,
      &CrossPointSettings::orientation,
-     {"Portrait", "Landscape CW", "Inverted", "Landscape CCW"}},
-    {"Front Button Layout",
+     {"세로", "가로 시계방향", "반전", "가로 반시계방향"}},
+    // {"Front Button Layout",
+    //  SettingType::ENUM,
+    //  &CrossPointSettings::frontButtonLayout,
+    //  {"Bck, Cnfrm, Lft, Rght", "Lft, Rght, Bck, Cnfrm", "Lft, Bck, Cnfrm, Rght"}},
+    {"앞면 버튼 레이아웃",
      SettingType::ENUM,
      &CrossPointSettings::frontButtonLayout,
-     {"Bck, Cnfrm, Lft, Rght", "Lft, Rght, Bck, Cnfrm", "Lft, Bck, Cnfrm, Rght"}},
-    {"Side Button Layout (reader)",
+     {"뒤로, 확인, 왼쪽, 오른쪽", "왼쪽, 오른쪽, 뒤로, 확인", "왼쪽, 뒤로, 확인, 오른쪽"}},
+      // {"Side Button Layout (reader)",
+      //  SettingType::ENUM,
+      //  &CrossPointSettings::sideButtonLayout,
+      //  {"Prev, Next", "Next, Prev"}},
+    {"측면 버튼 레이아웃 (리더기)",
      SettingType::ENUM,
      &CrossPointSettings::sideButtonLayout,
-     {"Prev, Next", "Next, Prev"}},
-    {"Reader Line Spacing", SettingType::ENUM, &CrossPointSettings::lineSpacing, {"Tight", "Normal", "Wide"}},
-    {"Check for updates", SettingType::ACTION, nullptr, {}},
+     {"이전, 다음", "다음, 이전"}},
+    // {"Reader Line Spacing", SettingType::ENUM, &CrossPointSettings::lineSpacing, {"Tight", "Normal", "Wide"}},
+    {"줄 간격", SettingType::ENUM, &CrossPointSettings::lineSpacing, {"좁게", "보통", "넓게"}},
+    // {"Check for updates", SettingType::ACTION, nullptr, {}},
+    {"업데이트 확인", SettingType::ACTION, nullptr, {}},
 };
 }  // namespace
 
@@ -158,7 +176,8 @@ void SettingsActivity::render() const {
   const auto pageHeight = renderer.getScreenHeight();
 
   // Draw header
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, "Settings", true, EpdFontFamily::BOLD);
+  // renderer.drawCenteredText(UI_12_FONT_ID, 15, "Settings", true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 15, "설정", true, EpdFontFamily::BOLD);
 
   // Draw selection
   renderer.fillRect(0, 60 + selectedSettingIndex * 30 - 2, pageWidth - 1, 30);
@@ -188,7 +207,8 @@ void SettingsActivity::render() const {
                     pageHeight - 60, CROSSPOINT_VERSION);
 
   // Draw help text
-  const auto labels = mappedInput.mapLabels("« Save", "Toggle", "", "");
+  // const auto labels = mappedInput.mapLabels("« Save", "Toggle", "", "");
+  const auto labels = mappedInput.mapLabels("« 저장", "토글", "", "");
   renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   // Always use standard refresh for settings screen

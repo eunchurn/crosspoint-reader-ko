@@ -176,11 +176,13 @@ void FileSelectionActivity::render() const {
   renderer.drawCenteredText(UI_12_FONT_ID, 15, "Books", true, EpdFontFamily::BOLD);
 
   // Help text
-  const auto labels = mappedInput.mapLabels("« Home", "Open", "", "");
+  // const auto labels = mappedInput.mapLabels("« Home", "Open", "", "");
+  const auto labels = mappedInput.mapLabels("« 홈", "열기", "", "");
   renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   if (files.empty()) {
-    renderer.drawText(UI_10_FONT_ID, 20, 60, "No books found");
+    // renderer.drawText(UI_10_FONT_ID, 20, 60, "No books found");
+    renderer.drawText(UI_10_FONT_ID, 20, 60, "책을 찾을 수 없습니다");
     renderer.displayBuffer();
     return;
   }

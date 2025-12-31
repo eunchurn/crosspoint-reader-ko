@@ -425,6 +425,7 @@ void CrossPointWebServerActivity::renderServerRunning() const {
     renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 5, "or scan QR code with your phone:");
   }
 
-  const auto labels = mappedInput.mapLabels("« Exit", "", "", "");
+  // const auto labels = mappedInput.mapLabels("« Exit", "", "", "");
+  const auto labels = mappedInput.mapLabels("« 종료", "", "", "");
   renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }

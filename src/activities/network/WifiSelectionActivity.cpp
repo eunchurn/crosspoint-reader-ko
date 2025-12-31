@@ -191,7 +191,8 @@ void WifiSelectionActivity::selectNetwork(const int index) {
     // Don't allow screen updates while changing activity
     xSemaphoreTake(renderingMutex, portMAX_DELAY);
     enterNewActivity(new KeyboardEntryActivity(
-        renderer, mappedInput, "Enter WiFi Password",
+        // renderer, mappedInput, "Enter WiFi Password",
+        renderer, mappedInput, "WiFi 비밀번호 입력",
         "",     // No initial text
         50,     // Y position
         64,     // Max password length
@@ -502,8 +503,10 @@ void WifiSelectionActivity::renderNetworkList() const {
     // No networks found or scan failed
     const auto height = renderer.getLineHeight(UI_10_FONT_ID);
     const auto top = (pageHeight - height) / 2;
-    renderer.drawCenteredText(UI_10_FONT_ID, top, "No networks found");
-    renderer.drawCenteredText(SMALL_FONT_ID, top + height + 10, "Press OK to scan again");
+    // renderer.drawCenteredText(UI_10_FONT_ID, top, "No networks found");
+    renderer.drawCenteredText(UI_10_FONT_ID, top, "네트워크를 찾을 수 없음");
+    // renderer.drawCenteredText(SMALL_FONT_ID, top + height + 10, "Press OK to scan again");
+    renderer.drawCenteredText(SMALL_FONT_ID, top + height + 10, "확인을 눌러 다시 스캔");
   } else {
     // Calculate how many networks we can display
     constexpr int startY = 60;
@@ -565,7 +568,8 @@ void WifiSelectionActivity::renderNetworkList() const {
 
   // Draw help text
   renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 75, "* = Encrypted | + = Saved");
-  const auto labels = mappedInput.mapLabels("« Back", "Connect", "", "");
+  // const auto labels = mappedInput.mapLabels("« Back", "Connect", "", "");
+  const auto labels = mappedInput.mapLabels("« 뒤로", "연결", "", "");
   renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
@@ -575,9 +579,11 @@ void WifiSelectionActivity::renderConnecting() const {
   const auto top = (pageHeight - height) / 2;
 
   if (state == WifiSelectionState::SCANNING) {
-    renderer.drawCenteredText(UI_10_FONT_ID, top, "Scanning...");
+    // renderer.drawCenteredText(UI_10_FONT_ID, top, "Scanning...");
+    renderer.drawCenteredText(UI_10_FONT_ID, top, "스캔 중...");
   } else {
-    renderer.drawCenteredText(UI_12_FONT_ID, top - 40, "Connecting...", true, EpdFontFamily::BOLD);
+    // renderer.drawCenteredText(UI_12_FONT_ID, top - 40, "Connecting...", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(UI_12_FONT_ID, top - 40, "연결 중...", true, EpdFontFamily::BOLD);
 
     std::string ssidInfo = "to " + selectedSSID;
     if (ssidInfo.length() > 25) {
@@ -592,7 +598,8 @@ void WifiSelectionActivity::renderConnected() const {
   const auto height = renderer.getLineHeight(UI_10_FONT_ID);
   const auto top = (pageHeight - height * 4) / 2;
 
-  renderer.drawCenteredText(UI_12_FONT_ID, top - 30, "Connected!", true, EpdFontFamily::BOLD);
+  // renderer.drawCenteredText(UI_12_FONT_ID, top - 30, "Connected!", true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, top - 30, "연결됨!", true, EpdFontFamily::BOLD);
 
   std::string ssidInfo = "Network: " + selectedSSID;
   if (ssidInfo.length() > 28) {
@@ -603,7 +610,8 @@ void WifiSelectionActivity::renderConnected() const {
   const std::string ipInfo = "IP Address: " + connectedIP;
   renderer.drawCenteredText(UI_10_FONT_ID, top + 40, ipInfo.c_str());
 
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to continue");
+  // renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to continue");
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "아무 버튼이나 눌러 계속하세요");
 }
 
 void WifiSelectionActivity::renderSavePrompt() const {
@@ -612,7 +620,8 @@ void WifiSelectionActivity::renderSavePrompt() const {
   const auto height = renderer.getLineHeight(UI_10_FONT_ID);
   const auto top = (pageHeight - height * 3) / 2;
 
-  renderer.drawCenteredText(UI_12_FONT_ID, top - 40, "Connected!", true, EpdFontFamily::BOLD);
+  // renderer.drawCenteredText(UI_12_FONT_ID, top - 40, "Connected!", true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, top - 40, "연결됨!", true, EpdFontFamily::BOLD);
 
   std::string ssidInfo = "Network: " + selectedSSID;
   if (ssidInfo.length() > 28) {
@@ -620,7 +629,8 @@ void WifiSelectionActivity::renderSavePrompt() const {
   }
   renderer.drawCenteredText(UI_10_FONT_ID, top, ssidInfo.c_str());
 
-  renderer.drawCenteredText(UI_10_FONT_ID, top + 40, "Save password for next time?");
+  // renderer.drawCenteredText(UI_10_FONT_ID, top + 40, "Save password for next time?");
+  renderer.drawCenteredText(UI_10_FONT_ID, top + 40, "다음에 사용할 비밀번호 저장?");
 
   // Draw Yes/No buttons
   const int buttonY = top + 80;
@@ -631,19 +641,24 @@ void WifiSelectionActivity::renderSavePrompt() const {
 
   // Draw "Yes" button
   if (savePromptSelection == 0) {
-    renderer.drawText(UI_10_FONT_ID, startX, buttonY, "[Yes]");
+    // renderer.drawText(UI_10_FONT_ID, startX, buttonY, "[Yes]");
+    renderer.drawText(UI_10_FONT_ID, startX, buttonY, "[예]");
   } else {
-    renderer.drawText(UI_10_FONT_ID, startX + 4, buttonY, "Yes");
+    // renderer.drawText(UI_10_FONT_ID, startX + 4, buttonY, "Yes");
+    renderer.drawText(UI_10_FONT_ID, startX + 4, buttonY, "예");
   }
 
   // Draw "No" button
   if (savePromptSelection == 1) {
-    renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY, "[No]");
+    // renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY, "[No]");
+    renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY, "[아니요]");
   } else {
-    renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY, "No");
+    // renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY, "No");
+    renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY, "아니요");
   }
 
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "LEFT/RIGHT: Select | OK: Confirm");
+  // renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "LEFT/RIGHT: Select | OK: Confirm");
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "왼쪽/오른쪽: 선택 | 확인: 확인");
 }
 
 void WifiSelectionActivity::renderConnectionFailed() const {
@@ -651,9 +666,11 @@ void WifiSelectionActivity::renderConnectionFailed() const {
   const auto height = renderer.getLineHeight(UI_10_FONT_ID);
   const auto top = (pageHeight - height * 2) / 2;
 
-  renderer.drawCenteredText(UI_12_FONT_ID, top - 20, "Connection Failed", true, EpdFontFamily::BOLD);
+  // renderer.drawCenteredText(UI_12_FONT_ID, top - 20, "Connection Failed", true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, top - 20, "연결 실패", true, EpdFontFamily::BOLD);
   renderer.drawCenteredText(UI_10_FONT_ID, top + 20, connectionError.c_str());
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to continue");
+  // renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to continue");
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "아무 버튼이나 눌러 계속하세요");
 }
 
 void WifiSelectionActivity::renderForgetPrompt() const {
@@ -662,7 +679,8 @@ void WifiSelectionActivity::renderForgetPrompt() const {
   const auto height = renderer.getLineHeight(UI_10_FONT_ID);
   const auto top = (pageHeight - height * 3) / 2;
 
-  renderer.drawCenteredText(UI_12_FONT_ID, top - 40, "Forget Network?", true, EpdFontFamily::BOLD);
+  // renderer.drawCenteredText(UI_12_FONT_ID, top - 40, "Forget Network?", true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, top - 40, "네트워크 지우기?", true, EpdFontFamily::BOLD);
 
   std::string ssidInfo = "Network: " + selectedSSID;
   if (ssidInfo.length() > 28) {
@@ -670,7 +688,8 @@ void WifiSelectionActivity::renderForgetPrompt() const {
   }
   renderer.drawCenteredText(UI_10_FONT_ID, top, ssidInfo.c_str());
 
-  renderer.drawCenteredText(UI_10_FONT_ID, top + 40, "Remove saved password?");
+  // renderer.drawCenteredText(UI_10_FONT_ID, top + 40, "Remove saved password?");
+  renderer.drawCenteredText(UI_10_FONT_ID, top + 40, "저장된 비밀번호를 삭제하시겠습니까?");
 
   // Draw Yes/No buttons
   const int buttonY = top + 80;
@@ -681,17 +700,22 @@ void WifiSelectionActivity::renderForgetPrompt() const {
 
   // Draw "Yes" button
   if (forgetPromptSelection == 0) {
-    renderer.drawText(UI_10_FONT_ID, startX, buttonY, "[Yes]");
+    // renderer.drawText(UI_10_FONT_ID, startX, buttonY, "[Yes]");
+    renderer.drawText(UI_10_FONT_ID, startX, buttonY, "[예]");
   } else {
-    renderer.drawText(UI_10_FONT_ID, startX + 4, buttonY, "Yes");
+    // renderer.drawText(UI_10_FONT_ID, startX + 4, buttonY, "Yes");
+    renderer.drawText(UI_10_FONT_ID, startX + 4, buttonY, "예");
   }
 
   // Draw "No" button
   if (forgetPromptSelection == 1) {
-    renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY, "[No]");
+    // renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY, "[No]");
+    renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY, "[아니요]");
   } else {
-    renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY, "No");
+    // renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY, "No");
+    renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY, "아니요");
   }
 
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "LEFT/RIGHT: Select | OK: Confirm");
+  // renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "LEFT/RIGHT: Select | OK: Confirm");
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "왼쪽/오른쪽: 선택 | 확인: 확인");
 }
