@@ -268,13 +268,16 @@ void HomeActivity::render() const {
     }
 
     renderer.drawCenteredText(UI_10_FONT_ID, bookY + bookHeight - renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2,
-                              "Continue Reading", !bookSelected);
+                              // "Continue Reading", !bookSelected);
+                              "읽기 계속", !bookSelected);
   } else {
     // No book to continue reading
     const int y =
         bookY + (bookHeight - renderer.getLineHeight(UI_12_FONT_ID) - renderer.getLineHeight(UI_10_FONT_ID)) / 2;
-    renderer.drawCenteredText(UI_12_FONT_ID, y, "No open book");
-    renderer.drawCenteredText(UI_10_FONT_ID, y + renderer.getLineHeight(UI_12_FONT_ID), "Start reading below");
+    // renderer.drawCenteredText(UI_12_FONT_ID, y, "No open book");
+    renderer.drawCenteredText(UI_12_FONT_ID, y, "열린 책이 없습니다");
+    // renderer.drawCenteredText(UI_10_FONT_ID, y + renderer.getLineHeight(UI_12_FONT_ID), "Start reading below");
+    renderer.drawCenteredText(UI_10_FONT_ID, y + renderer.getLineHeight(UI_12_FONT_ID), "아래에서 읽기 시작");
   }
 
   // --- Bottom menu tiles (indices 1-3) ---
@@ -291,7 +294,8 @@ void HomeActivity::render() const {
   }
 
   for (int i = 0; i < 3; ++i) {
-    constexpr const char* items[3] = {"Browse files", "File transfer", "Settings"};
+    // constexpr const char* items[3] = {"Browse files", "File transfer", "Settings"};
+    constexpr const char* items[3] = {"파일 탐색기", "파일 전송", "설정"};
     const int overallIndex = i + (getMenuItemCount() - 3);
     constexpr int tileX = margin;
     const int tileY = menuStartY + i * (menuTileHeight + menuSpacing);
@@ -313,7 +317,8 @@ void HomeActivity::render() const {
     renderer.drawText(UI_10_FONT_ID, textX, textY, label, !selected);
   }
 
-  const auto labels = mappedInput.mapLabels("", "Confirm", "Up", "Down");
+  // const auto labels = mappedInput.mapLabels("", "Confirm", "Up", "Down");
+  const auto labels = mappedInput.mapLabels("", "확인", "위", "아래");
   renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   ScreenComponents::drawBattery(renderer, 20, pageHeight - 70);
