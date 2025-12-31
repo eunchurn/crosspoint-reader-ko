@@ -56,6 +56,9 @@ class SdFontFamily {
   int8_t getAscender(EpdFontStyle style = REGULAR) const;
   int8_t getDescender(EpdFontStyle style = REGULAR) const;
   bool is2Bit(EpdFontStyle style = REGULAR) const;
+
+  // Check if bold variant is available
+  bool hasBold() const { return bold != nullptr; }
 };
 
 /**
@@ -107,4 +110,7 @@ class UnifiedFontFamily {
 
   // Flash font specific (returns nullptr for SD fonts)
   const EpdFontData* getFlashData(EpdFontStyle style = REGULAR) const;
+
+  // Check if bold variant is available (for synthetic bold decision)
+  bool hasBold() const;
 };

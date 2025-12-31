@@ -40,15 +40,13 @@ MappedInputManager mappedInputManager(inputManager);
 GfxRenderer renderer(einkDisplay);
 Activity* currentActivity;
 
-// UI Font (Pretendard 10pt)
+// UI Font (Pretendard 10pt) - Regular only, synthetic bold applied by renderer
 EpdFont pretendard10RegularFont(&pretendard_10_regular);
-EpdFont pretendard10BoldFont(&pretendard_10_bold);
-EpdFontFamily uiFontFamily(&pretendard10RegularFont, &pretendard10BoldFont);
+EpdFontFamily uiFontFamily(&pretendard10RegularFont);
 
-// Korean EPUB reader font (Eulyoo 14pt)
+// Korean EPUB reader font (Eulyoo 14pt) - Regular only, synthetic bold applied by renderer
 EpdFont eulyoo14RegularFont(&eulyoo_14_regular);
-EpdFont eulyoo14BoldFont(&eulyoo_14_bold);
-EpdFontFamily eulyoo14FontFamily(&eulyoo14RegularFont, &eulyoo14BoldFont);
+EpdFontFamily eulyoo14FontFamily(&eulyoo14RegularFont);
 
 // Korean fonts loading from SD card is disabled due to memory constraints
 // Font files should be in /.crosspoint/fonts/ directory

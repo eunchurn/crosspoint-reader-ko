@@ -1,9 +1,7 @@
 #pragma once
 
-// UI fonts (Pretendard 10pt)
+// UI fonts (Pretendard 10pt) - Regular only, synthetic bold used when needed
 #include <builtinFonts/pretendard_10_regular.h>
-#include <builtinFonts/pretendard_10_bold.h>
 
-// Korean EPUB reader font (Eulyoo 14pt)
+// Korean EPUB reader font (Eulyoo 14pt) - Regular only, synthetic bold used when needed
 #include <builtinFonts/eulyoo_14_regular.h>
-#include <builtinFonts/eulyoo_14_bold.h>

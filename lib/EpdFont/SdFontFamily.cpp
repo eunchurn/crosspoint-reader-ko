@@ -287,3 +287,12 @@ const EpdFontData* UnifiedFontFamily::getFlashData(EpdFontStyle style) const {
   }
   return nullptr;
 }
+
+bool UnifiedFontFamily::hasBold() const {
+  if (type == Type::FLASH && flashFont) {
+    return flashFont->hasBold();
+  } else if (sdFont) {
+    return sdFont->hasBold();
+  }
+  return false;
+}
