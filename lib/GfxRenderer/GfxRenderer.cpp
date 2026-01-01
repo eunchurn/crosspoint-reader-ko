@@ -624,6 +624,11 @@ void GfxRenderer::restoreBwBuffer() {
   Serial.printf("[%lu] [GFX] Restored and freed BW buffer chunks\n", millis());
 }
 
+/**
+ * Copy stored BW buffer to framebuffer without freeing the stored chunks.
+ * Use this when you want to restore the buffer but keep it for later reuse.
+ * Returns true if buffer was copied successfully.
+ */
 bool GfxRenderer::copyStoredBwBuffer() {
   // Check if all chunks are allocated
   for (const auto& bwBufferChunk : bwBufferChunks) {
@@ -645,6 +650,10 @@ bool GfxRenderer::copyStoredBwBuffer() {
   return true;
 }
 
+/**
+ * Free the stored BW buffer chunks manually.
+ * Use this when you no longer need the stored buffer.
+ */
 void GfxRenderer::freeStoredBwBuffer() { freeBwBufferChunks(); }
 
 /**
