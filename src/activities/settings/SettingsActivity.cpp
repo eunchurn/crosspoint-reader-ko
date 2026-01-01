@@ -13,13 +13,13 @@ constexpr int settingsCount = 12;
 const SettingInfo settingsList[settingsCount] = {
     // Should match with SLEEP_SCREEN_MODE
     // {"Sleep Screen", SettingType::ENUM, &CrossPointSettings::sleepScreen, {"Dark", "Light", "Custom", "Cover"}},
-    {"잠금 화면", SettingType::ENUM, &CrossPointSettings::sleepScreen, {"어두운", "밝은", "사용자 정의", "커버"}},
+    {"절전 화면 이미지", SettingType::ENUM, &CrossPointSettings::sleepScreen, {"다크", "라이트", "사용자 정의", "커버"}},
     // {"Status Bar", SettingType::ENUM, &CrossPointSettings::statusBar, {"None", "No Progress", "Full"}},
     {"상태 표시줄", SettingType::ENUM, &CrossPointSettings::statusBar, {"없음", "진행 없음", "전체"}},
     // {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing, {}},
     {"문단 간격 추가", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing, {}},
     // {"Short Power Button Click", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn, {}},
-    {"짧은 전원 버튼 클릭", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn, {}},
+    {"전원 버튼 짧게 눌러 끄기", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn, {}},
     // {"Reading Orientation",
     //  SettingType::ENUM,
     //  &CrossPointSettings::orientation,
