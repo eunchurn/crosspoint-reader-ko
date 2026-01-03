@@ -430,7 +430,7 @@ int GfxRenderer::getTextHeight(const int fontId) const {
     Serial.printf("[%lu] [GFX] Font %d not found\n", millis(), fontId);
     return 0;
   }
-  return fontMap.at(fontId).getData(EpdFontFamily::REGULAR)->ascender;
+  return fontMap.at(fontId)->getAscender(EpdFontFamily::REGULAR);
 }
 
 void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y, const char* text, const bool black,
@@ -444,10 +444,10 @@ void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y
     Serial.printf("[%lu] [GFX] Font %d not found\n", millis(), fontId);
     return;
   }
-  const auto font = fontMap.at(fontId);
+  const auto& font = fontMap.at(fontId);
 
   // No printable characters
-  if (!font.hasPrintableChars(text, style)) {
+  if (!font->hasPrintableChars(text, style)) {
     return;
   }
 
@@ -459,22 +459,22 @@ void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y
 
   uint32_t cp;
   while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&text)))) {
-    const EpdGlyph* glyph = font.getGlyph(cp, style);
+    const EpdGlyph* glyph = font->getGlyph(cp, style);
     if (!glyph) {
-      glyph = font.getGlyph('?', style);
+      glyph = font->getGlyph('?', style);
     }
     if (!glyph) {
       continue;
     }
 
-    const int is2Bit = font.getData(style)->is2Bit;
-    const uint32_t offset = glyph->dataOffset;
+    const bool is2BitFont = font->is2Bit(style);
     const uint8_t width = glyph->width;
     const uint8_t height = glyph->height;
     const int left = glyph->left;
     const int top = glyph->top;
+    const int ascender = font->getAscender(style);
 
-    const uint8_t* bitmap = &font.getData(style)->bitmap[offset];
+    const uint8_t* bitmap = font->getGlyphBitmap(cp, style);
 
     if (bitmap != nullptr) {
       for (int glyphY = 0; glyphY < height; glyphY++) {
@@ -484,10 +484,10 @@ void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y
           // 90° clockwise rotation transformation:
           // screenX = x + (ascender - top + glyphY)
           // screenY = yPos - (left + glyphX)
-          const int screenX = x + (font.getData(style)->ascender - top + glyphY);
+          const int screenX = x + (ascender - top + glyphY);
           const int screenY = yPos - left - glyphX;
 
-          if (is2Bit) {
+          if (is2BitFont) {
             const uint8_t byte = bitmap[pixelPosition / 4];
             const uint8_t bit_index = (3 - pixelPosition % 4) * 2;
             const uint8_t bmpVal = 3 - (byte >> bit_index) & 0x3;

@@ -106,7 +106,7 @@ bool OtaUpdater::isUpdateNewer() const {
 
 const std::string& OtaUpdater::getLatestVersion() const { return latestVersion; }
 
-bool OtaUpdater::isUpdateNewerKO() {
+bool OtaUpdater::isUpdateNewerKO() const {
   if (!updateAvailable || latestVersion.empty() || latestVersion == CROSSPOINT_VERSION) {
     return false;
   }
