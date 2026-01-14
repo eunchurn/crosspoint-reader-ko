@@ -9,7 +9,7 @@
 #include "FsHelpers.h"
 
 namespace {
-constexpr uint8_t BOOK_CACHE_VERSION = 4;
+constexpr uint8_t BOOK_CACHE_VERSION = 5;
 constexpr char bookBinFile[] = "/book.bin";
 constexpr char tmpSpineBinFile[] = "/spine.bin.tmp";
 constexpr char tmpTocBinFile[] = "/toc.bin.tmp";
@@ -260,7 +260,7 @@ void BookMetadataCache::createTocEntry(const std::string& title, const std::stri
   }
 
   if (spineIndex == -1) {
-    Serial.printf("[%lu] [BMC] addTocEntry: Could not find spine item for TOC href %s\n", millis(), href.c_str());
+    Serial.printf("[%lu] [BMC] addTocEntry: Could not find spine item for TOC href: %s\n", millis(), href.c_str());
   }
 
   const TocEntry entry(title, href, anchor, level, spineIndex);

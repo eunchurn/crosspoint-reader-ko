@@ -17,7 +17,6 @@
 #include "fontIds.h"
 #include "util/StringUtils.h"
 
-
 void HomeActivity::taskTrampoline(void* param) {
   auto* self = static_cast<HomeActivity*>(param);
   self->displayTaskLoop();
