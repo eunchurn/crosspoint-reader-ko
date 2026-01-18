@@ -191,24 +191,39 @@ void XtcReaderActivity::renderPage() {
     pageBufferSize = ((pageWidth + 7) / 8) * pageHeight;
   }
 
-  // Allocate page buffer
+  // For XTCH (2-bit), try to allocate single plane buffer (48KB) if full buffer (96KB) fails
+  // This allows streaming rendering with less memory
   uint8_t* pageBuffer = static_cast<uint8_t*>(malloc(pageBufferSize));
+  bool useStreamingMode = false;
+
+  if (!pageBuffer && bitDepth == 2) {
+    // Try half-size buffer for streaming mode
+    const size_t planeSize = pageBufferSize / 2;
+    pageBuffer = static_cast<uint8_t*>(malloc(planeSize));
+    if (pageBuffer) {
+      useStreamingMode = true;
+      Serial.printf("[%lu] [XTR] Using streaming mode (plane buffer %lu bytes)\n", millis(), planeSize);
+    }
+  }
+
   if (!pageBuffer) {
     Serial.printf("[%lu] [XTR] Failed to allocate page buffer (%lu bytes)\n", millis(), pageBufferSize);
-    renderer.clearScreen();
-    renderer.drawCenteredText(UI_12_FONT_ID, 300, "Memory error", true, EpdFontFamily::BOLD);
-    renderer.displayBuffer();
+    // Don't display anything - just return to avoid showing garbage
     return;
   }
 
   // Load page data
-  size_t bytesRead = xtc->loadPage(currentPage, pageBuffer, pageBufferSize);
+  size_t bytesRead;
+  if (useStreamingMode) {
+    // Streaming mode: will load planes separately later
+    bytesRead = 1;  // Placeholder, actual loading happens in render loop
+  } else {
+    bytesRead = xtc->loadPage(currentPage, pageBuffer, pageBufferSize);
+  }
+
   if (bytesRead == 0) {
     Serial.printf("[%lu] [XTR] Failed to load page %lu\n", millis(), currentPage);
     free(pageBuffer);
-    renderer.clearScreen();
-    renderer.drawCenteredText(UI_12_FONT_ID, 300, "Page load error", true, EpdFontFamily::BOLD);
-    renderer.displayBuffer();
     return;
   }
 
@@ -220,100 +235,201 @@ void XtcReaderActivity::renderPage() {
   const uint16_t maxSrcY = pageHeight;
 
   if (bitDepth == 2) {
-    // XTH 2-bit mode: Two bit planes, column-major order
-    // - Columns scanned right to left (x = width-1 down to 0)
-    // - 8 vertical pixels per byte (MSB = topmost pixel in group)
-    // - First plane: Bit1, Second plane: Bit2
-    // - Pixel value = (bit1 << 1) | bit2
-    // - Grayscale: 0=White, 1=Dark Grey, 2=Light Grey, 3=Black
+    // XTH 2-bit grayscale format (from spec):
+    // - Two sequential bit planes: plane1 (bit1), plane2 (bit2)
+    // - Column-major: columns right→left, 8 vertical pixels/byte, MSB=top
+    // - pixelValue = (bit1 << 1) | bit2: 0=White, 1=DarkGrey, 2=LightGrey, 3=Black
+    // - plane1 → cmd 0x24 (BW RAM), plane2 → cmd 0x26 (RED RAM)
+    //
+    // XTH is pre-rendered for 480x800 portrait display.
+    // E-paper RAM is 800x480 with 8 horizontal pixels/byte.
+    // Coordinate transform needed: XTH(x,y) → RAM(y, 479-x)
 
     const size_t planeSize = (static_cast<size_t>(pageWidth) * pageHeight + 7) / 8;
-    const uint8_t* plane1 = pageBuffer;              // Bit1 plane
-    const uint8_t* plane2 = pageBuffer + planeSize;  // Bit2 plane
-    const size_t colBytes = (pageHeight + 7) / 8;    // Bytes per column (100 for 800 height)
+    const size_t colBytes = (pageHeight + 7) / 8;  // 100 bytes per column for 800 height
 
-    // Lambda to get pixel value at (x, y)
-    auto getPixelValue = [&](uint16_t x, uint16_t y) -> uint8_t {
-      const size_t colIndex = pageWidth - 1 - x;
-      const size_t byteInCol = y / 8;
-      const size_t bitInByte = 7 - (y % 8);
-      const size_t byteOffset = colIndex * colBytes + byteInCol;
-      const uint8_t bit1 = (plane1[byteOffset] >> bitInByte) & 1;
-      const uint8_t bit2 = (plane2[byteOffset] >> bitInByte) & 1;
-      return (bit1 << 1) | bit2;
+    uint8_t* frameBuffer = renderer.getFrameBuffer();
+    const size_t fbSize = GfxRenderer::getBufferSize();
+
+    // Transform XTH plane (column-major) to framebuffer (row-major with rotation)
+    // LUT: 00=no change, 01=light gray, 10=gray, 11=dark gray
+    // Higher value = darker, so bit 1 = active (contributes to darker)
+    // XTH: col = width-1-x, byte = y/8, bit = 7-(y%8)
+    // FB:  row = 479-x, byte = y/8, bit = 7-(y%8)
+    auto transformXthPlaneToFb = [&](const uint8_t* xthPlane) {
+      memset(frameBuffer, 0x00, fbSize);  // Start with all 0s (no gray effect)
+
+      for (uint16_t xthX = 0; xthX < pageWidth; xthX++) {
+        // XTH column index (right to left)
+        const size_t xthCol = pageWidth - 1 - xthX;
+        const size_t xthColBase = xthCol * colBytes;
+
+        // FB row (after 90° rotation: xthX → fbRow)
+        const uint16_t fbRow = EInkDisplay::DISPLAY_HEIGHT - 1 - xthX;
+        const size_t fbRowBase = fbRow * EInkDisplay::DISPLAY_WIDTH_BYTES;
+
+        for (uint16_t xthY = 0; xthY < pageHeight; xthY++) {
+          // Read XTH bit
+          const size_t xthByteIdx = xthColBase + (xthY / 8);
+          const uint8_t xthBitPos = 7 - (xthY % 8);
+          const uint8_t xthBit = (xthPlane[xthByteIdx] >> xthBitPos) & 1;
+
+          // FB column (after 90° rotation: xthY → fbCol)
+          const uint16_t fbCol = xthY;
+          const size_t fbByteIdx = fbRowBase + (fbCol / 8);
+          const uint8_t fbBitPos = 7 - (fbCol % 8);
+
+          // XTH bit 1 = this plane contributes to darker pixel
+          // LUT bit 1 = active (darker), so copy directly
+          if (xthBit == 1) {
+            frameBuffer[fbByteIdx] |= (1 << fbBitPos);  // Set to 1 (active)
+          }
+          // else: leave as 0 (no effect)
+        }
+      }
     };
 
-    // Optimized grayscale rendering without storeBwBuffer (saves 48KB peak memory)
-    // Flow: BW display → LSB/MSB passes → grayscale display → re-render BW for next frame
+    if (!useStreamingMode) {
+      // Normal mode: 96KB buffer has both planes
+      const uint8_t* plane1 = pageBuffer;              // bit1 → BW RAM (0x24)
+      const uint8_t* plane2 = pageBuffer + planeSize;  // bit2 → RED RAM (0x26)
 
-    // Count pixel distribution for debugging
-    uint32_t pixelCounts[4] = {0, 0, 0, 0};
-    for (uint16_t y = 0; y < pageHeight; y++) {
-      for (uint16_t x = 0; x < pageWidth; x++) {
-        pixelCounts[getPixelValue(x, y)]++;
-      }
-    }
-    Serial.printf("[%lu] [XTR] Pixel distribution: White=%lu, DarkGrey=%lu, LightGrey=%lu, Black=%lu\n", millis(),
-                  pixelCounts[0], pixelCounts[1], pixelCounts[2], pixelCounts[3]);
+      Serial.printf("[%lu] [XTR] Grayscale render (clear → BW → grayscale)\n", millis());
 
-    // Pass 1: BW buffer - draw all non-white pixels as black
-    for (uint16_t y = 0; y < pageHeight; y++) {
-      for (uint16_t x = 0; x < pageWidth; x++) {
-        if (getPixelValue(x, y) >= 1) {
-          renderer.drawPixel(x, y, true);
-        }
-      }
-    }
-
-    // Display BW with conditional refresh based on pagesUntilFullRefresh
-    if (pagesUntilFullRefresh <= 1) {
+      // Step 1: Clear screen to white with HALF_REFRESH to remove ghosting
+      renderer.clearScreen(0xFF);
       renderer.displayBuffer(EInkDisplay::HALF_REFRESH);
-      pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
+
+      // Step 2: Build and display BW image (black where any non-white pixel)
+      memset(frameBuffer, 0xFF, fbSize);
+      for (uint16_t xthX = 0; xthX < pageWidth; xthX++) {
+        const size_t xthCol = pageWidth - 1 - xthX;
+        const size_t xthColBase = xthCol * colBytes;
+        const uint16_t fbRow = EInkDisplay::DISPLAY_HEIGHT - 1 - xthX;
+        const size_t fbRowBase = fbRow * EInkDisplay::DISPLAY_WIDTH_BYTES;
+
+        for (uint16_t xthY = 0; xthY < pageHeight; xthY++) {
+          const size_t xthByteIdx = xthColBase + (xthY / 8);
+          const uint8_t xthBitPos = 7 - (xthY % 8);
+          const uint8_t bit1 = (plane1[xthByteIdx] >> xthBitPos) & 1;
+          const uint8_t bit2 = (plane2[xthByteIdx] >> xthBitPos) & 1;
+
+          // Any non-white pixel (bit1 or bit2 is 1) → black in BW
+          if (bit1 || bit2) {
+            const uint16_t fbCol = xthY;
+            const size_t fbByteIdx = fbRowBase + (fbCol / 8);
+            const uint8_t fbBitPos = 7 - (fbCol % 8);
+            frameBuffer[fbByteIdx] &= ~(1 << fbBitPos);
+          }
+        }
+      }
+      renderer.displayBuffer();  // Fast refresh for BW
+
+      // Step 3: Store BW buffer for restoration
+      renderer.storeBwBuffer();
+
+      // Step 4: Render grayscale planes
+      // XTH: pixelValue = (bit1 << 1) | bit2
+      //   0=White, 1=DarkGrey, 2=LightGrey, 3=Black
+      // LUT: (MSB << 1) | LSB
+      //   00=white, 01=light gray, 10=gray, 11=dark gray
+      transformXthPlaneToFb(plane2);
+      renderer.copyGrayscaleLsbBuffers();  // plane2 (bit2) → LSB → BW RAM (0x24)
+
+      transformXthPlaneToFb(plane1);
+      renderer.copyGrayscaleMsbBuffers();  // plane1 (bit1) → MSB → RED RAM (0x26)
+
+      // Step 5: Display grayscale
+      renderer.displayGrayBuffer();
+
+      // Step 6: Restore BW buffer
+      renderer.restoreBwBuffer();
+
     } else {
-      renderer.displayBuffer();
-      pagesUntilFullRefresh--;
-    }
+      // Streaming mode: 48KB buffer, load each plane separately for 2-bit grayscale
+      Serial.printf("[%lu] [XTR] Streaming mode: 2-bit grayscale (clear → BW → grayscale)\n", millis());
 
-    // Pass 2: LSB buffer - mark DARK gray only (XTH value 1)
-    // In LUT: 0 bit = apply gray effect, 1 bit = untouched
-    renderer.clearScreen(0x00);
-    for (uint16_t y = 0; y < pageHeight; y++) {
-      for (uint16_t x = 0; x < pageWidth; x++) {
-        if (getPixelValue(x, y) == 1) {  // Dark grey only
-          renderer.drawPixel(x, y, false);
+      // Lambda to load a specific plane via streaming
+      auto loadPlane = [&](size_t planeOffset) -> bool {
+        size_t loaded = 0;
+        xtc->loadPageStreaming(
+            currentPage,
+            [&](const uint8_t* data, size_t size, size_t offset) {
+              // Only copy data from the target plane
+              if (offset >= planeOffset && offset < planeOffset + planeSize) {
+                const size_t planeLocalOffset = offset - planeOffset;
+                const size_t copySize = std::min(size, planeSize - planeLocalOffset);
+                memcpy(pageBuffer + planeLocalOffset, data, copySize);
+                loaded = planeLocalOffset + copySize;
+              } else if (offset < planeOffset && offset + size > planeOffset) {
+                // Data spans into our plane
+                const size_t skipBytes = planeOffset - offset;
+                const size_t copySize = std::min(size - skipBytes, planeSize);
+                memcpy(pageBuffer, data + skipBytes, copySize);
+                loaded = copySize;
+              }
+            },
+            4096);
+        return loaded >= planeSize;
+      };
+
+      // Step 1: Clear screen to white with HALF_REFRESH
+      renderer.clearScreen(0xFF);
+      renderer.displayBuffer(EInkDisplay::HALF_REFRESH);
+
+      // Load plane1
+      if (!loadPlane(0)) {
+        Serial.printf("[%lu] [XTR] Streaming plane1 incomplete\n", millis());
+        free(pageBuffer);
+        return;
+      }
+
+      // Step 2: Build BW image from plane1 (approximate)
+      memset(frameBuffer, 0xFF, fbSize);
+      for (uint16_t xthX = 0; xthX < pageWidth; xthX++) {
+        const size_t xthCol = pageWidth - 1 - xthX;
+        const size_t xthColBase = xthCol * colBytes;
+        const uint16_t fbRow = EInkDisplay::DISPLAY_HEIGHT - 1 - xthX;
+        const size_t fbRowBase = fbRow * EInkDisplay::DISPLAY_WIDTH_BYTES;
+
+        for (uint16_t xthY = 0; xthY < pageHeight; xthY++) {
+          const size_t xthByteIdx = xthColBase + (xthY / 8);
+          const uint8_t xthBitPos = 7 - (xthY % 8);
+          const uint8_t bit1 = (pageBuffer[xthByteIdx] >> xthBitPos) & 1;
+
+          if (bit1) {
+            const uint16_t fbCol = xthY;
+            const size_t fbByteIdx = fbRowBase + (fbCol / 8);
+            const uint8_t fbBitPos = 7 - (fbCol % 8);
+            frameBuffer[fbByteIdx] &= ~(1 << fbBitPos);
+          }
         }
       }
-    }
-    renderer.copyGrayscaleLsbBuffers();
+      renderer.displayBuffer();  // Fast refresh for BW
 
-    // Pass 3: MSB buffer - mark LIGHT AND DARK gray (XTH value 1 or 2)
-    // In LUT: 0 bit = apply gray effect, 1 bit = untouched
-    renderer.clearScreen(0x00);
-    for (uint16_t y = 0; y < pageHeight; y++) {
-      for (uint16_t x = 0; x < pageWidth; x++) {
-        const uint8_t pv = getPixelValue(x, y);
-        if (pv == 1 || pv == 2) {  // Dark grey or Light grey
-          renderer.drawPixel(x, y, false);
-        }
+      // Store BW buffer
+      renderer.storeBwBuffer();
+
+      // Step 3: Transform plane1 for MSB
+      transformXthPlaneToFb(pageBuffer);
+      renderer.copyGrayscaleMsbBuffers();  // plane1 (bit1) → MSB → RED RAM (0x26)
+
+      // Load plane2
+      if (!loadPlane(planeSize)) {
+        Serial.printf("[%lu] [XTR] Streaming plane2 incomplete\n", millis());
+        // Continue with just plane1
+      } else {
+        // Transform plane2 for LSB
+        transformXthPlaneToFb(pageBuffer);
       }
+      renderer.copyGrayscaleLsbBuffers();  // plane2 (bit2) → LSB → BW RAM (0x24)
+
+      // Display grayscale
+      renderer.displayGrayBuffer();
+
+      // Restore BW buffer
+      renderer.restoreBwBuffer();
     }
-    renderer.copyGrayscaleMsbBuffers();
-
-    // Display grayscale overlay
-    renderer.displayGrayBuffer();
-
-    // Pass 4: Re-render BW to framebuffer (restore for next frame, instead of restoreBwBuffer)
-    renderer.clearScreen();
-    for (uint16_t y = 0; y < pageHeight; y++) {
-      for (uint16_t x = 0; x < pageWidth; x++) {
-        if (getPixelValue(x, y) >= 1) {
-          renderer.drawPixel(x, y, true);
-        }
-      }
-    }
-
-    // Cleanup grayscale buffers with current frame buffer
-    renderer.cleanupGrayscaleWithFrameBuffer();
 
     free(pageBuffer);
 

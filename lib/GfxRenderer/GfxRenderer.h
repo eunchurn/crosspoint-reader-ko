@@ -108,11 +108,15 @@ class GfxRenderer {
   void copyGrayscaleLsbBuffers() const;
   void copyGrayscaleMsbBuffers() const;
   void displayGrayBuffer() const;
+  void displayGrayBufferDark() const;  // Darker grayscale for XTCH
   bool storeBwBuffer();       // Returns true if buffer was stored successfully
   void restoreBwBuffer();     // Restore and free the stored buffer
   bool copyStoredBwBuffer();  // Copy stored buffer to framebuffer without freeing
   void freeStoredBwBuffer();  // Free the stored buffer manually
   void cleanupGrayscaleWithFrameBuffer() const;
+
+  // Direct XTH plane transfer for XTCH files (zero-copy grayscale)
+  void writeXthPlanesDirectly(const uint8_t* plane1, const uint8_t* plane2, size_t planeSize) const;
 
   // Low level functions
   uint8_t* getFrameBuffer() const;

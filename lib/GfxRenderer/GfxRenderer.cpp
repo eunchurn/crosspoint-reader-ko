@@ -704,6 +704,12 @@ void GfxRenderer::copyGrayscaleMsbBuffers() const { einkDisplay.copyGrayscaleMsb
 
 void GfxRenderer::displayGrayBuffer() const { einkDisplay.displayGrayBuffer(); }
 
+void GfxRenderer::displayGrayBufferDark() const { einkDisplay.displayGrayBufferDark(); }
+
+void GfxRenderer::writeXthPlanesDirectly(const uint8_t* plane1, const uint8_t* plane2, size_t planeSize) const {
+  einkDisplay.writeXthPlanesDirectly(plane1, plane2, planeSize);
+}
+
 void GfxRenderer::freeBwBufferChunks() {
   for (auto& bwBufferChunk : bwBufferChunks) {
     if (bwBufferChunk) {
