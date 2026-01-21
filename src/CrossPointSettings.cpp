@@ -14,7 +14,7 @@ CrossPointSettings CrossPointSettings::instance;
 namespace {
 constexpr uint8_t SETTINGS_FILE_VERSION = 1;
 // Increment this when adding new persisted settings fields
-constexpr uint8_t SETTINGS_COUNT = 19;
+constexpr uint8_t SETTINGS_COUNT = 22;  // Added customFontBoldPath, customFontItalicPath, customFontBoldItalicPath
 constexpr char SETTINGS_FILE[] = "/.crosspoint/settings.bin";
 }  // namespace
 
@@ -49,6 +49,9 @@ bool CrossPointSettings::saveToFile() const {
   serialization::writePod(outputFile, hideBatteryPercentage);
   serialization::writePod(outputFile, longPressChapterSkip);
   serialization::writeString(outputFile, std::string(customFontPath));
+  serialization::writeString(outputFile, std::string(customFontBoldPath));
+  serialization::writeString(outputFile, std::string(customFontItalicPath));
+  serialization::writeString(outputFile, std::string(customFontBoldItalicPath));
   outputFile.close();
 
   Serial.printf("[%lu] [CPS] Settings saved to file\n", millis());
@@ -122,6 +125,27 @@ bool CrossPointSettings::loadFromFile() {
       serialization::readString(inputFile, fontPathStr);
       strncpy(customFontPath, fontPathStr.c_str(), sizeof(customFontPath) - 1);
       customFontPath[sizeof(customFontPath) - 1] = '\0';
+    }
+    if (++settingsRead >= fileSettingsCount) break;
+    {
+      std::string fontPathStr;
+      serialization::readString(inputFile, fontPathStr);
+      strncpy(customFontBoldPath, fontPathStr.c_str(), sizeof(customFontBoldPath) - 1);
+      customFontBoldPath[sizeof(customFontBoldPath) - 1] = '\0';
+    }
+    if (++settingsRead >= fileSettingsCount) break;
+    {
+      std::string fontPathStr;
+      serialization::readString(inputFile, fontPathStr);
+      strncpy(customFontItalicPath, fontPathStr.c_str(), sizeof(customFontItalicPath) - 1);
+      customFontItalicPath[sizeof(customFontItalicPath) - 1] = '\0';
+    }
+    if (++settingsRead >= fileSettingsCount) break;
+    {
+      std::string fontPathStr;
+      serialization::readString(inputFile, fontPathStr);
+      strncpy(customFontBoldItalicPath, fontPathStr.c_str(), sizeof(customFontBoldItalicPath) - 1);
+      customFontBoldItalicPath[sizeof(customFontBoldItalicPath) - 1] = '\0';
     }
     if (++settingsRead >= fileSettingsCount) break;
   } while (false);
@@ -258,16 +282,66 @@ const char* CrossPointSettings::getCustomFontName() const {
   if (!hasCustomFont()) {
     return nullptr;
   }
-  // Extract filename from path (e.g., "/.crosspoint/fonts/MyFont.epdfont" -> "MyFont")
+  // Extract family name from path
+  // Supports formats:
+  //   /fonts/FontFamily-Style-Size.epdfont -> "FontFamily-Size"
+  //   /fonts/FontFamily-Size.epdfont -> "FontFamily-Size"
   const char* lastSlash = strrchr(customFontPath, '/');
   const char* filename = lastSlash ? lastSlash + 1 : customFontPath;
-  // Remove extension for display
-  static char nameBuffer[32];
+
+  static char nameBuffer[48];
   strncpy(nameBuffer, filename, sizeof(nameBuffer) - 1);
   nameBuffer[sizeof(nameBuffer) - 1] = '\0';
+
+  // Remove .epdfont extension
   char* dot = strrchr(nameBuffer, '.');
-  if (dot) {
+  if (dot && strcasecmp(dot, ".epdfont") == 0) {
     *dot = '\0';
   }
+
+  // Parse to extract family-size (remove style if present)
+  // Find last hyphen (before size)
+  char* lastHyphen = strrchr(nameBuffer, '-');
+  if (!lastHyphen) {
+    return nameBuffer;  // No hyphen, return as-is
+  }
+
+  // Check if part after last hyphen is a number (size)
+  bool isSize = true;
+  for (const char* p = lastHyphen + 1; *p; p++) {
+    if (*p < '0' || *p > '9') {
+      isSize = false;
+      break;
+    }
+  }
+
+  if (!isSize) {
+    return nameBuffer;  // Last part is not size, return as-is
+  }
+
+  // Find second-to-last hyphen
+  *lastHyphen = '\0';  // Temporarily terminate to find previous hyphen
+  char* styleHyphen = strrchr(nameBuffer, '-');
+  *lastHyphen = '-';  // Restore
+
+  if (!styleHyphen) {
+    return nameBuffer;  // Only one hyphen (FontFamily-Size), return as-is
+  }
+
+  // Check if the part between hyphens is a style name
+  size_t styleLen = lastHyphen - styleHyphen - 1;
+  char stylePart[16];
+  if (styleLen < sizeof(stylePart)) {
+    strncpy(stylePart, styleHyphen + 1, styleLen);
+    stylePart[styleLen] = '\0';
+
+    // Check for known style names (case-insensitive)
+    if (strcasecmp(stylePart, "Regular") == 0 || strcasecmp(stylePart, "Bold") == 0 ||
+        strcasecmp(stylePart, "Italic") == 0 || strcasecmp(stylePart, "BoldItalic") == 0) {
+      // Remove style part: "FontFamily-Style-Size" -> "FontFamily-Size"
+      memmove(styleHyphen, lastHyphen, strlen(lastHyphen) + 1);
+    }
+  }
+
   return nameBuffer;
 }

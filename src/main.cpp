@@ -133,9 +133,10 @@ EpdFont ui12BoldFont(&ubuntu_12_bold);
 EpdFontFamily ui12FontFamily(&ui12RegularFont, &ui12BoldFont);
 
 // Custom font loading from SD card
-constexpr char FONTS_DIR[] = "/.crosspoint/fonts";
+constexpr char FONTS_DIR[] = "/fonts";
 
 // Load custom reader font from SD card if configured
+// Supports font families with Regular, Bold, Italic, BoldItalic variants
 // Returns true if custom font was loaded successfully
 bool loadCustomReaderFont(GfxRenderer& gfxRenderer) {
   if (!SETTINGS.hasCustomFont()) {
@@ -143,19 +144,40 @@ bool loadCustomReaderFont(GfxRenderer& gfxRenderer) {
     return false;
   }
 
-  const char* fontPath = SETTINGS.customFontPath;
-  Serial.printf("[%lu] [FNT] Loading custom font: %s\n", millis(), fontPath);
+  const char* regularPath = SETTINGS.customFontPath;
+  Serial.printf("[%lu] [FNT] Loading custom font family: %s\n", millis(), regularPath);
 
-  if (!SdMan.exists(fontPath)) {
-    Serial.printf("[%lu] [FNT] Custom font file not found: %s\n", millis(), fontPath);
-    // Clear invalid font path
+  if (!SdMan.exists(regularPath)) {
+    Serial.printf("[%lu] [FNT] Custom font file not found: %s\n", millis(), regularPath);
+    // Clear invalid font paths
     SETTINGS.customFontPath[0] = '\0';
+    SETTINGS.customFontBoldPath[0] = '\0';
+    SETTINGS.customFontItalicPath[0] = '\0';
+    SETTINGS.customFontBoldItalicPath[0] = '\0';
     SETTINGS.saveToFile();
     return false;
   }
 
-  // Create SdFontFamily for the custom font
-  SdFontFamily* font = new SdFontFamily(fontPath);
+  // Get optional style variant paths (nullptr if not set or file doesn't exist)
+  const char* boldPath = nullptr;
+  const char* italicPath = nullptr;
+  const char* boldItalicPath = nullptr;
+
+  if (SETTINGS.hasCustomFontBold() && SdMan.exists(SETTINGS.customFontBoldPath)) {
+    boldPath = SETTINGS.customFontBoldPath;
+    Serial.printf("[%lu] [FNT]   Bold variant: %s\n", millis(), boldPath);
+  }
+  if (SETTINGS.hasCustomFontItalic() && SdMan.exists(SETTINGS.customFontItalicPath)) {
+    italicPath = SETTINGS.customFontItalicPath;
+    Serial.printf("[%lu] [FNT]   Italic variant: %s\n", millis(), italicPath);
+  }
+  if (SETTINGS.hasCustomFontBoldItalic() && SdMan.exists(SETTINGS.customFontBoldItalicPath)) {
+    boldItalicPath = SETTINGS.customFontBoldItalicPath;
+    Serial.printf("[%lu] [FNT]   BoldItalic variant: %s\n", millis(), boldItalicPath);
+  }
+
+  // Create SdFontFamily with all available style variants
+  SdFontFamily* font = new SdFontFamily(regularPath, boldPath, italicPath, boldItalicPath);
   if (font == nullptr) {
     Serial.printf("[%lu] [FNT] Failed to allocate memory for custom font\n", millis());
     return false;
@@ -163,14 +185,18 @@ bool loadCustomReaderFont(GfxRenderer& gfxRenderer) {
 
   if (font->load()) {
     gfxRenderer.insertSdFont(CUSTOM_FONT_ID, font);
-    Serial.printf("[%lu] [FNT] Custom reader font loaded successfully\n", millis());
+    Serial.printf("[%lu] [FNT] Custom reader font family loaded [R:Y B:%s I:%s BI:%s]\n", millis(),
+                  boldPath ? "Y" : "N", italicPath ? "Y" : "N", boldItalicPath ? "Y" : "N");
     return true;
   }
 
   Serial.printf("[%lu] [FNT] Failed to load custom font, clearing setting\n", millis());
   delete font;
-  // Clear invalid font path so getReaderFontId() returns default font
+  // Clear invalid font paths so getReaderFontId() returns default font
   SETTINGS.customFontPath[0] = '\0';
+  SETTINGS.customFontBoldPath[0] = '\0';
+  SETTINGS.customFontItalicPath[0] = '\0';
+  SETTINGS.customFontBoldItalicPath[0] = '\0';
   SETTINGS.saveToFile();
   return false;
 }

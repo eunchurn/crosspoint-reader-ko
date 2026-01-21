@@ -4,14 +4,29 @@
 #include <freertos/task.h>
 
 #include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
 #include "activities/ActivityWithSubactivity.h"
 
 /**
- * Activity for selecting a custom font from /.crosspoint/fonts folder.
- * Lists .epdfont files and allows the user to select one.
+ * Font family entry with paths to different style variants.
+ * Follows FontFamily-Style-Size.epdfont naming convention.
+ * Style can be: Regular, Bold, Italic, BoldItalic
+ */
+struct FontFamilyEntry {
+  std::string displayName;   // e.g., "Literata-14"
+  std::string regularPath;   // Path to Regular variant
+  std::string boldPath;      // Path to Bold variant (optional)
+  std::string italicPath;    // Path to Italic variant (optional)
+  std::string boldItalicPath;  // Path to BoldItalic variant (optional)
+};
+
+/**
+ * Activity for selecting a custom font from /fonts folder.
+ * Lists font families (grouped by FontFamily-Style-Size.epdfont naming convention)
+ * and allows the user to select one.
  */
 class FontSelectionActivity final : public ActivityWithSubactivity {
  public:
@@ -29,8 +44,7 @@ class FontSelectionActivity final : public ActivityWithSubactivity {
   bool updateRequired = false;
 
   int selectedIndex = 0;
-  std::vector<std::string> fontFiles;  // List of font file paths
-  std::vector<std::string> fontNames;  // Display names (without path and extension)
+  std::vector<FontFamilyEntry> fontFamilies;  // Grouped font families
   const std::function<void()> onBack;
 
   static void taskTrampoline(void* param);
@@ -39,5 +53,9 @@ class FontSelectionActivity final : public ActivityWithSubactivity {
   void loadFontList();
   void handleSelection();
 
-  static constexpr const char* FONTS_DIR = "/.crosspoint/fonts";
+  // Parse font filename into family-size key and style
+  // e.g., "Literata-Bold-14.epdfont" -> key="Literata-14", style="Bold"
+  static bool parseFontFilename(const char* filename, std::string& familySizeKey, std::string& style);
+
+  static constexpr const char* FONTS_DIR = "/fonts";
 };

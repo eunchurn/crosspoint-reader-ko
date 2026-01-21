@@ -4,7 +4,9 @@
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
 
+#include <algorithm>
 #include <cstring>
+#include <map>
 
 #include "CrossPointSettings.h"
 #include "FontManager.h"
@@ -90,7 +92,69 @@ void invalidateReaderCaches() {
 
   Serial.printf("[%lu] [FNT] Invalidated %d cache entries\n", millis(), deletedCount);
 }
+
+// Case-insensitive string comparison helper
+bool caseInsensitiveEquals(const std::string& a, const std::string& b) {
+  if (a.size() != b.size()) return false;
+  for (size_t i = 0; i < a.size(); i++) {
+    if (tolower(a[i]) != tolower(b[i])) return false;
+  }
+  return true;
+}
 }  // namespace
+
+// Parse font filename into family-size key and style
+// Supports formats:
+//   FontFamily-Style-Size.epdfont (e.g., "Literata-Bold-14.epdfont")
+//   FontFamily-Size.epdfont (e.g., "Literata-14.epdfont" - assumed Regular)
+// Returns false if parsing fails
+bool FontSelectionActivity::parseFontFilename(const char* filename, std::string& familySizeKey, std::string& style) {
+  std::string name(filename);
+
+  // Remove .epdfont extension
+  const size_t extPos = name.rfind(".epdfont");
+  if (extPos == std::string::npos) {
+    return false;
+  }
+  name = name.substr(0, extPos);
+
+  // Find the last hyphen (before size)
+  const size_t lastHyphen = name.rfind('-');
+  if (lastHyphen == std::string::npos || lastHyphen == 0) {
+    return false;  // Invalid format
+  }
+
+  // Check if the part after last hyphen is a number (size)
+  std::string sizePart = name.substr(lastHyphen + 1);
+  bool isNumber = !sizePart.empty() && std::all_of(sizePart.begin(), sizePart.end(), ::isdigit);
+
+  if (!isNumber) {
+    return false;  // Last part is not a size
+  }
+
+  // Now find the second-to-last hyphen to check for style
+  std::string beforeSize = name.substr(0, lastHyphen);
+  const size_t styleHyphen = beforeSize.rfind('-');
+
+  if (styleHyphen != std::string::npos && styleHyphen > 0) {
+    std::string potentialStyle = beforeSize.substr(styleHyphen + 1);
+
+    // Check if this is a known style
+    if (caseInsensitiveEquals(potentialStyle, "Regular") || caseInsensitiveEquals(potentialStyle, "Bold") ||
+        caseInsensitiveEquals(potentialStyle, "Italic") || caseInsensitiveEquals(potentialStyle, "BoldItalic")) {
+      // Format: FontFamily-Style-Size
+      std::string familyName = beforeSize.substr(0, styleHyphen);
+      familySizeKey = familyName + "-" + sizePart;
+      style = potentialStyle;
+      return true;
+    }
+  }
+
+  // Format: FontFamily-Size (no explicit style, assume Regular)
+  familySizeKey = name;  // e.g., "Literata-14"
+  style = "Regular";
+  return true;
+}
 
 void FontSelectionActivity::taskTrampoline(void* param) {
   auto* self = static_cast<FontSelectionActivity*>(param);
@@ -98,15 +162,14 @@ void FontSelectionActivity::taskTrampoline(void* param) {
 }
 
 void FontSelectionActivity::loadFontList() {
-  fontFiles.clear();
-  fontNames.clear();
+  fontFamilies.clear();
 
-  // First entry is always the default font (empty path means default)
-  fontFiles.emplace_back("");
-  fontNames.emplace_back(DEFAULT_FONT_NAME);
+  // First entry is always the default font
+  FontFamilyEntry defaultEntry;
+  defaultEntry.displayName = DEFAULT_FONT_NAME;
+  fontFamilies.push_back(defaultEntry);
 
   // Ensure fonts directory exists
-  SdMan.mkdir("/.crosspoint");
   SdMan.mkdir(FONTS_DIR);
 
   // Try to open the fonts folder
@@ -122,7 +185,10 @@ void FontSelectionActivity::loadFontList() {
     return;
   }
 
-  // List all .epdfont files
+  // Temporary map to group fonts by family-size
+  std::map<std::string, FontFamilyEntry> familyMap;
+
+  // Scan all .epdfont files
   FsFile file;
   while (file.openNext(&dir, O_RDONLY)) {
     if (!file.isDir()) {
@@ -132,28 +198,70 @@ void FontSelectionActivity::loadFontList() {
       // Check if file has .epdfont extension and skip macOS hidden files (._*)
       const size_t len = strlen(filename);
       if (len > 8 && strcasecmp(filename + len - 8, ".epdfont") == 0 && strncmp(filename, "._", 2) != 0) {
-        // Build full path
-        std::string fullPath = std::string(FONTS_DIR) + "/" + filename;
-        fontFiles.push_back(fullPath);
+        std::string familySizeKey, style;
+        if (parseFontFilename(filename, familySizeKey, style)) {
+          std::string fullPath = std::string(FONTS_DIR) + "/" + filename;
 
-        // Extract name without extension for display
-        std::string displayName(filename, len - 8);
-        fontNames.push_back(displayName);
+          // Get or create family entry
+          auto& entry = familyMap[familySizeKey];
+          if (entry.displayName.empty()) {
+            entry.displayName = familySizeKey;
+          }
 
-        Serial.printf("[%lu] [FNT] Found font: %s\n", millis(), fullPath.c_str());
+          // Assign path to appropriate style
+          if (caseInsensitiveEquals(style, "Regular")) {
+            entry.regularPath = fullPath;
+          } else if (caseInsensitiveEquals(style, "Bold")) {
+            entry.boldPath = fullPath;
+          } else if (caseInsensitiveEquals(style, "Italic")) {
+            entry.italicPath = fullPath;
+          } else if (caseInsensitiveEquals(style, "BoldItalic")) {
+            entry.boldItalicPath = fullPath;
+          }
+
+          Serial.printf("[%lu] [FNT] Found font: %s (family: %s, style: %s)\n", millis(), fullPath.c_str(),
+                        familySizeKey.c_str(), style.c_str());
+        } else {
+          // Fallback: treat as single-file font (no style variants)
+          std::string fullPath = std::string(FONTS_DIR) + "/" + filename;
+          std::string displayName(filename, len - 8);
+
+          FontFamilyEntry entry;
+          entry.displayName = displayName;
+          entry.regularPath = fullPath;
+          familyMap[displayName] = entry;
+
+          Serial.printf("[%lu] [FNT] Found font (no style): %s\n", millis(), fullPath.c_str());
+        }
       }
     }
     file.close();
   }
   dir.close();
 
-  Serial.printf("[%lu] [FNT] Total fonts found: %zu (including default)\n", millis(), fontFiles.size());
+  // Convert map to vector, filtering out families without Regular variant
+  for (auto& pair : familyMap) {
+    auto& entry = pair.second;
+    if (!entry.regularPath.empty()) {
+      fontFamilies.push_back(entry);
 
-  // Find currently selected font index
+      // Log style availability
+      Serial.printf("[%lu] [FNT] Font family: %s [R:%s B:%s I:%s BI:%s]\n", millis(), entry.displayName.c_str(),
+                    entry.regularPath.empty() ? "N" : "Y", entry.boldPath.empty() ? "N" : "Y",
+                    entry.italicPath.empty() ? "N" : "Y", entry.boldItalicPath.empty() ? "N" : "Y");
+    } else {
+      Serial.printf("[%lu] [FNT] Skipping font family without Regular: %s\n", millis(), entry.displayName.c_str());
+    }
+  }
+
+  Serial.printf("[%lu] [FNT] Total font families found: %zu (including default)\n", millis(), fontFamilies.size());
+
+  // Find currently selected font family index
   selectedIndex = 0;  // Default
   if (SETTINGS.hasCustomFont()) {
-    for (size_t i = 1; i < fontFiles.size(); i++) {
-      if (fontFiles[i] == SETTINGS.customFontPath) {
+    for (size_t i = 1; i < fontFamilies.size(); i++) {
+      // Match by regular path (primary identifier)
+      if (fontFamilies[i].regularPath == SETTINGS.customFontPath) {
         selectedIndex = static_cast<int>(i);
         break;
       }
@@ -207,7 +315,7 @@ void FontSelectionActivity::loop() {
     return;
   }
 
-  const int itemCount = static_cast<int>(fontNames.size());
+  const int itemCount = static_cast<int>(fontFamilies.size());
   if (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
       mappedInput.wasPressed(MappedInputManager::Button::Left)) {
     selectedIndex = (selectedIndex + itemCount - 1) % itemCount;
@@ -227,18 +335,46 @@ void FontSelectionActivity::handleSelection() {
   renderer.drawCenteredText(UI_10_FONT_ID, renderer.getScreenHeight() / 2 - 10, "Applying font...");
   renderer.displayBuffer();
 
-  // Update custom font path in settings
+  const auto& selected = fontFamilies[selectedIndex];
+
+  // Update custom font paths in settings
   if (selectedIndex == 0) {
-    // Default font selected - clear custom font path
+    // Default font selected - clear custom font paths
     SETTINGS.customFontPath[0] = '\0';
+    SETTINGS.customFontBoldPath[0] = '\0';
+    SETTINGS.customFontItalicPath[0] = '\0';
+    SETTINGS.customFontBoldItalicPath[0] = '\0';
   } else {
-    // Custom font selected
-    strncpy(SETTINGS.customFontPath, fontFiles[selectedIndex].c_str(), sizeof(SETTINGS.customFontPath) - 1);
+    // Custom font selected - save all available style paths
+    strncpy(SETTINGS.customFontPath, selected.regularPath.c_str(), sizeof(SETTINGS.customFontPath) - 1);
     SETTINGS.customFontPath[sizeof(SETTINGS.customFontPath) - 1] = '\0';
+
+    if (!selected.boldPath.empty()) {
+      strncpy(SETTINGS.customFontBoldPath, selected.boldPath.c_str(), sizeof(SETTINGS.customFontBoldPath) - 1);
+      SETTINGS.customFontBoldPath[sizeof(SETTINGS.customFontBoldPath) - 1] = '\0';
+    } else {
+      SETTINGS.customFontBoldPath[0] = '\0';
+    }
+
+    if (!selected.italicPath.empty()) {
+      strncpy(SETTINGS.customFontItalicPath, selected.italicPath.c_str(), sizeof(SETTINGS.customFontItalicPath) - 1);
+      SETTINGS.customFontItalicPath[sizeof(SETTINGS.customFontItalicPath) - 1] = '\0';
+    } else {
+      SETTINGS.customFontItalicPath[0] = '\0';
+    }
+
+    if (!selected.boldItalicPath.empty()) {
+      strncpy(SETTINGS.customFontBoldItalicPath, selected.boldItalicPath.c_str(),
+              sizeof(SETTINGS.customFontBoldItalicPath) - 1);
+      SETTINGS.customFontBoldItalicPath[sizeof(SETTINGS.customFontBoldItalicPath) - 1] = '\0';
+    } else {
+      SETTINGS.customFontBoldItalicPath[0] = '\0';
+    }
   }
 
   SETTINGS.saveToFile();
-  Serial.printf("[%lu] [FNT] Font selected: %s\n", millis(), selectedIndex == 0 ? "default" : SETTINGS.customFontPath);
+  Serial.printf("[%lu] [FNT] Font family selected: %s\n", millis(),
+                selectedIndex == 0 ? "default" : selected.displayName.c_str());
 
   // Reload custom font dynamically (no reboot needed)
   reloadCustomReaderFont();
@@ -277,7 +413,7 @@ void FontSelectionActivity::render() {
   constexpr int lineHeight = 30;
   constexpr int startY = 60;
   const int maxVisibleItems = (pageHeight - startY - 50) / lineHeight;
-  const int itemCount = static_cast<int>(fontNames.size());
+  const int itemCount = static_cast<int>(fontFamilies.size());
 
   // Calculate scroll offset to keep selected item visible
   int scrollOffset = 0;
@@ -290,8 +426,8 @@ void FontSelectionActivity::render() {
   // Determine current selection (for checkmark comparison)
   int currentSelectedIndex = 0;  // Default
   if (SETTINGS.hasCustomFont()) {
-    for (size_t i = 1; i < fontFiles.size(); i++) {
-      if (fontFiles[i] == SETTINGS.customFontPath) {
+    for (size_t i = 1; i < fontFamilies.size(); i++) {
+      if (fontFamilies[i].regularPath == SETTINGS.customFontPath) {
         currentSelectedIndex = static_cast<int>(i);
         break;
       }
@@ -305,6 +441,8 @@ void FontSelectionActivity::render() {
     const bool isHighlighted = (itemIndex == selectedIndex);
     const bool isCurrentFont = (itemIndex == currentSelectedIndex);
 
+    const auto& entry = fontFamilies[itemIndex];
+
     // Draw selection highlight
     if (isHighlighted) {
       renderer.fillRect(0, itemY - 2, pageWidth - 1, lineHeight);
@@ -315,8 +453,21 @@ void FontSelectionActivity::render() {
       renderer.drawText(UI_10_FONT_ID, 10, itemY, "*", !isHighlighted);
     }
 
+    // Build display name with style indicators
+    std::string displayText = entry.displayName;
+    if (itemIndex > 0) {
+      // Show available styles for custom fonts
+      std::string styles;
+      if (!entry.boldPath.empty()) styles += "B";
+      if (!entry.italicPath.empty()) styles += "I";
+      if (!entry.boldItalicPath.empty()) styles += "+";
+      if (!styles.empty()) {
+        displayText += " [" + styles + "]";
+      }
+    }
+
     // Draw font name
-    renderer.drawText(UI_10_FONT_ID, 35, itemY, fontNames[itemIndex].c_str(), !isHighlighted);
+    renderer.drawText(UI_10_FONT_ID, 35, itemY, displayText.c_str(), !isHighlighted);
   }
 
   // Draw scroll indicators if needed

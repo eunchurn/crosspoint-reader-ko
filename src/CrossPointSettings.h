@@ -92,13 +92,23 @@ class CrossPointSettings {
   uint8_t hideBatteryPercentage = HIDE_NEVER;
   // Long-press chapter skip on side buttons
   uint8_t longPressChapterSkip = 1;
-  // Custom reader font path (empty means use built-in font based on fontFamily/fontSize)
-  char customFontPath[64] = "";
+  // Custom reader font paths (empty means use built-in font based on fontFamily/fontSize)
+  // Supports FontFamily-Style-Size.epdfont naming convention for style variants
+  char customFontPath[64] = "";           // Regular style (required)
+  char customFontBoldPath[64] = "";       // Bold style (optional)
+  char customFontItalicPath[64] = "";     // Italic style (optional)
+  char customFontBoldItalicPath[64] = ""; // BoldItalic style (optional)
 
   ~CrossPointSettings() = default;
 
   // Check if custom font is set
   bool hasCustomFont() const { return customFontPath[0] != '\0'; }
+  // Check if custom font has bold variant
+  bool hasCustomFontBold() const { return customFontBoldPath[0] != '\0'; }
+  // Check if custom font has italic variant
+  bool hasCustomFontItalic() const { return customFontItalicPath[0] != '\0'; }
+  // Check if custom font has bold-italic variant
+  bool hasCustomFontBoldItalic() const { return customFontBoldItalicPath[0] != '\0'; }
   // Get custom font name (extracted from path)
   const char* getCustomFontName() const;
 
