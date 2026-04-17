@@ -26,20 +26,6 @@ for size in 10 12; do
   done
 done
 
-# Eulyoo fonts
-for size in 12 14 16 18; do
-  for style in regular semibold; do
-    input="$FONT_DIR/eulyoo_${size}_${style}.h"
-    output="$OUTPUT_DIR/eulyoo_${size}_${style}.epdfont"
-    if [ -f "$input" ]; then
-      echo "Converting: eulyoo_${size}_${style}.h"
-      python3 "$SCRIPT_DIR/convert_to_epdfont.py" "$input" "$output"
-    else
-      echo "Warning: $input not found"
-    fi
-  done
-done
-
 echo ""
 echo "Conversion complete!"
 echo ""
