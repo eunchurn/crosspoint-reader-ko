@@ -20,8 +20,9 @@ Welcome to the **CrossPoint** firmware. This guide outlines the hardware control
       - [3.6.2 Reader](#362-reader)
       - [3.6.3 Controls](#363-controls)
       - [3.6.4 System](#364-system)
-      - [3.6.5 OPDS Servers (Multiple Libraries)](#365-opds-servers-multiple-libraries)
-      - [3.6.6 KOReader Sync Quick Setup](#366-koreader-sync-quick-setup)
+      - [3.6.5 SD Card Firmware Update](#365-sd-card-firmware-update)
+      - [3.6.6 OPDS Servers (Multiple Libraries)](#366-opds-servers-multiple-libraries)
+      - [3.6.7 KOReader Sync Quick Setup](#367-koreader-sync-quick-setup)
     - [3.7 Sleep Screen](#37-sleep-screen)
   - [4. Reading Mode](#4-reading-mode)
     - [Page Turning](#page-turning)
@@ -195,12 +196,39 @@ The Settings screen allows you to configure the device's behavior. There are a f
 
 - **WiFi Networks**: Connect to WiFi networks for file transfers and firmware updates.
 - **KOReader Sync**: Options for setting up KOReader for syncing book progress.
-- **OPDS Servers**: Manage one or more OPDS libraries for browsing and downloading books. See [OPDS Servers (Multiple Libraries)](#365-opds-servers-multiple-libraries) below.
+- **OPDS Servers**: Manage one or more OPDS libraries for browsing and downloading books. See [OPDS Servers (Multiple Libraries)](#366-opds-servers-multiple-libraries) below.
 - **Clear Reading Cache**: Clear the internal SD card cache.
 - **Check for updates**: Check for Crosspoint firmware updates over WiFi.
+- **SD Card Firmware Update**: Install a firmware `.bin` directly from the SD card without WiFi or USB. See **[SD Card Firmware Update](#365-sd-card-firmware-update)** below.
 - **Language**: Set the system language (see **[Supported Languages](#supported-languages)** for more information).
 
-#### 3.6.5 OPDS Servers (Multiple Libraries)
+#### 3.6.5 SD Card Firmware Update
+
+The SD-card firmware update path lets you flash a firmware `.bin` from the SD card. It is useful when WiFi or the OTA update isn't an option — for example on USB-disabled X3 devices, when the network is unreliable, or when you want to install a custom build.
+
+##### Steps
+
+1. Copy the firmware file (e.g. `CrossPoint-1.2.0.bin`) to the **root of the SD card** (or any folder you can navigate to). Any filename ending in `.bin` is accepted.
+2. On the device, open **Settings → System → SD Card Firmware Update**.
+3. The file browser opens, filtered to show only `.bin` files. Navigate to and select the firmware file.
+4. The device validates the image — it checks the ESP32 image header, walks the segment table, verifies the XOR checksum, and matches the appended SHA-256 trailer when present. Bad or truncated files are rejected before any flash happens.
+5. A confirmation prompt shows the filename. Press **Confirm** to flash, or **Back** to cancel.
+6. The progress bar updates in real time during write. The image is re-validated at flash time, so a corrupted file can never reach the OTA partition.
+7. On success, the device automatically restarts into the new firmware.
+
+> Do not power off the device while the "Updating..." progress bar is on screen.
+
+##### Recovery Mode (USB-disabled / unbootable devices)
+
+If the running firmware is broken or the device boots into a state where you can't reach Settings, you can boot directly into the SD firmware picker:
+
+1. Power the device off completely (hold the power button until the screen clears).
+2. Press and hold the **left side button (Up)** together with the **Power button** to turn the device back on, and keep both held for about a second after the screen lights up.
+3. The device skips the home screen and goes straight to the SD firmware picker. Select your firmware file as in the normal flow above.
+
+> Recovery mode requires a hardware power-on cycle. A reboot triggered by `ESP.restart()` (e.g. right after a flash) will not enter recovery mode even if the buttons are held — fully power off first.
+
+#### 3.6.6 OPDS Servers (Multiple Libraries)
 
 CrossPoint supports saving multiple OPDS servers and switching between them when browsing catalogs.
 
@@ -223,7 +251,7 @@ You can also manage OPDS servers from the web interface while in File Transfer m
 2. Open `http://<device-ip>/settings`.
 3. Use the **OPDS Servers** card to add, edit, or delete entries.
 
-#### 3.6.6 KOReader Sync Quick Setup
+#### 3.6.7 KOReader Sync Quick Setup
 
 CrossPoint can sync reading progress with KOReader-compatible sync servers.
 It also interoperates with KOReader apps/devices when they use the same server and credentials.
