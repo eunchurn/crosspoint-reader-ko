@@ -24,6 +24,7 @@ enum class SettingAction {
   Language,
   FontSelection,
   SelectSleepScreens,
+  CloudPairing,
 };
 
 struct SettingInfo {
