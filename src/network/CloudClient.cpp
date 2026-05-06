@@ -8,6 +8,7 @@
 #include <WebSocketsClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <esp_mac.h>
 
 #include <cstdio>
 #include <cstring>
@@ -97,66 +98,109 @@ void CloudClient::begin() {
 void CloudClient::taskTrampoline(void* arg) { static_cast<CloudClient*>(arg)->taskLoop(); }
 
 void CloudClient::taskLoop() {
-  cmdCtx.txScratch.reserve(2048);
+  // Reserve enough headroom for the largest READ response: 4 byte length
+  // header + MAX_READ_CHUNK payload. Pre-reserving avoids a vector grow on
+  // every chunk, which would fragment the heap during a long download.
+  cmdCtx.txScratch.reserve(8 + FileCommands::MAX_READ_CHUNK);
 
-  // Wait for WiFi + a valid config before doing anything.
-  while (true) {
-    if (!configured) {
-      vTaskDelay(pdMS_TO_TICKS(2000));
-      continue;
-    }
-    if (WiFi.status() != WL_CONNECTED) {
-      vTaskDelay(pdMS_TO_TICKS(2000));
-      continue;
-    }
-    break;
-  }
-
-  ParsedUrl url = parseUrl(serverUrl);
-  if (!url.valid) {
-    LOG_ERR("CLOUD", "Invalid server URL: %s", serverUrl.c_str());
-    vTaskDelete(nullptr);
-    return;
-  }
-
-  // Auth: hardwareId.token in Sec-WebSocket-Protocol (matches server.ts).
-  std::string proto = std::string("cpr.v1, ") + hardwareId + "." + token;
-  ws.setExtraHeaders((std::string("Sec-WebSocket-Protocol: ") + proto).c_str());
-  ws.setReconnectInterval(5000);  // 5s between reconnect attempts
-  ws.enableHeartbeat(15000, 3000, 2);
+  // The event handler is registered once for the lifetime of the task.
   ws.onEvent([](WStype_t type, uint8_t* payload, size_t length) {
     if (gInstance) gInstance->onWsEvent(static_cast<int>(type), payload, length);
   });
-
-  if (url.ssl) {
-    ws.beginSSL(url.host.c_str(), url.port, url.path.c_str());
-  } else {
-    ws.begin(url.host.c_str(), url.port, url.path.c_str());
-  }
-  LOG_INF("CLOUD", "Connecting to %s:%u%s (ssl=%d)", url.host.c_str(), url.port, url.path.c_str(), url.ssl ? 1 : 0);
+  ws.setReconnectInterval(5000);  // 5s between reconnect attempts
+  ws.enableHeartbeat(15000, 3000, 2);
 
   while (true) {
-    ws.loop();
-    vTaskDelay(pdMS_TO_TICKS(5));
+    // Wait for paired + WiFi before opening a connection.
+    while (!configured || WiFi.status() != WL_CONNECTED) {
+      vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+
+    ParsedUrl url = parseUrl(serverUrl);
+    if (!url.valid) {
+      LOG_ERR("CLOUD", "Invalid server URL: %s", serverUrl.c_str());
+      vTaskDelay(pdMS_TO_TICKS(5000));
+      continue;
+    }
+
+    // Auth lives in the URL query string, not Sec-WebSocket-Protocol. Two
+    // reasons: (1) Railway's edge negotiates the subprotocol itself and only
+    // forwards the first offered value to the origin, so a `cpr.v1, <creds>`
+    // pair loses the credentials before the handler ever sees them; (2) HTTP
+    // token grammar bans ':' in subprotocol values, so the MAC has to be
+    // colon-free anyway. The query string passes through proxies unchanged
+    // and accepts the full token alphabet (base64url + hex).
+    std::string protoHwId;
+    protoHwId.reserve(hardwareId.size());
+    for (char c : hardwareId) {
+      if (c != ':') protoHwId.push_back(c);
+    }
+    const char sep = url.path.find('?') == std::string::npos ? '?' : '&';
+    char fullPath[256];
+    snprintf(fullPath, sizeof(fullPath), "%s%chw=%s&t=%s", url.path.c_str(), sep, protoHwId.c_str(), token.c_str());
+    const char* proto = "cpr.v1";
+
+    if (url.ssl) {
+      ws.beginSSL(url.host.c_str(), url.port, fullPath, "", proto);
+    } else {
+      ws.begin(url.host.c_str(), url.port, fullPath, proto);
+    }
+    LOG_INF("CLOUD", "Connecting to %s:%u%s (ssl=%d)", url.host.c_str(), url.port, url.path.c_str(), url.ssl ? 1 : 0);
+
+    needsRestart = false;
+    while (configured && !needsRestart) {
+      ws.loop();
+      vTaskDelay(pdMS_TO_TICKS(5));
+    }
+
+    LOG_INF("CLOUD", "Tearing down connection (configured=%d needsRestart=%d)", configured ? 1 : 0,
+            needsRestart ? 1 : 0);
+    ws.disconnect();
+    connected = false;
   }
 }
 
 void CloudClient::onWsEvent(int type, uint8_t* payload, size_t length) {
+  // Always trace event type + length so we can correlate handshake / drop
+  // sequences against server logs. The server-side relay reports an upgrade
+  // but the device sees only DISCONNECTED — without this we can't tell if
+  // CONNECTED fires at all, or which event arrives between them.
+  LOG_INF("CLOUD", "WS evt type=%d len=%u", type, static_cast<unsigned>(length));
+
   switch (type) {
     case WStype_CONNECTED:
       connected = true;
-      LOG_INF("CLOUD", "WS connected");
+      connectedAtMs = millis();
+      // Payload here is the path the server accepted — useful when debugging
+      // path-rewriting proxies.
+      LOG_INF("CLOUD", "WS connected url=%.*s", static_cast<int>(length),
+              payload ? reinterpret_cast<const char*>(payload) : "");
       break;
-    case WStype_DISCONNECTED:
+    case WStype_DISCONNECTED: {
+      uint32_t lifetime = connected && connectedAtMs ? (millis() - connectedAtMs) : 0;
       connected = false;
-      LOG_INF("CLOUD", "WS disconnected");
+      connectedAtMs = 0;
+      // The Links2004 lib forwards the close reason string as the payload,
+      // e.g. "WebSocket handshake failed - HTTP 200" or "TCP connection
+      // cleanup". Print it so we can tell handshake failures (server returns
+      // wrong status) apart from network drops.
+      LOG_INF("CLOUD", "WS disconnected (was connected for %u ms) reason=\"%.*s\"", static_cast<unsigned>(lifetime),
+              static_cast<int>(length > 96 ? 96 : length), payload ? reinterpret_cast<const char*>(payload) : "");
       break;
+    }
     case WStype_BIN:
       // [opcode][reqid LE][payload] — straight to FileCommands.
       FileCommands::dispatch(cmdCtx, payload, length);
       break;
+    case WStype_TEXT:
+      // Text frames aren't part of the binary protocol, but log the first
+      // bytes — server may send a close-reason string before dropping us.
+      LOG_INF("CLOUD", "WS text: %.*s", static_cast<int>(length > 96 ? 96 : length),
+              payload ? reinterpret_cast<const char*>(payload) : "");
+      break;
     case WStype_ERROR:
-      LOG_ERR("CLOUD", "WS error");
+      LOG_ERR("CLOUD", "WS error: %.*s", static_cast<int>(length > 96 ? 96 : length),
+              payload ? reinterpret_cast<const char*>(payload) : "");
       break;
     default:
       break;
@@ -169,9 +213,15 @@ void CloudClient::sinkSend(void* /*ctx*/, const uint8_t* data, size_t len) {
 }
 
 bool CloudClient::loadConfig() {
+  // Always seed serverUrl from the compile-time default first; loadConfig
+  // may then overwrite it from SD if the user set a custom URL.
+  if (serverUrl.empty() && CROSSPOINT_CLOUD_DEFAULT_URL[0] != '\0') {
+    serverUrl = CROSSPOINT_CLOUD_DEFAULT_URL;
+  }
+
   HalFile f;
   if (!Storage.openFileForRead("CLOUD", CONFIG_PATH, f)) {
-    LOG_INF("CLOUD", "no config at %s", CONFIG_PATH);
+    LOG_INF("CLOUD", "no config at %s (using default url='%s')", CONFIG_PATH, serverUrl.c_str());
     return false;
   }
   String body = Storage.readFile(CONFIG_PATH);
@@ -183,8 +233,13 @@ bool CloudClient::loadConfig() {
     LOG_ERR("CLOUD", "config json parse failed");
     return false;
   }
-  serverUrl = doc["url"] | "";
-  hardwareId = doc["hardwareId"] | hardwareId.c_str();
+  std::string savedUrl = doc["url"] | "";
+  if (!savedUrl.empty()) serverUrl = savedUrl;
+  // Deliberately ignore the saved hardwareId. The hwId is intrinsic to the
+  // device (eFuse MAC) and `begin()` already populated it from esp_read_mac.
+  // Older configs persisted from before the eFuse fix had the all-zero MAC
+  // because WiFi.macAddress() was queried pre-WiFi-init — overwriting here
+  // would resurrect that bug after every reboot.
   token = doc["token"] | "";
   deviceId = doc["deviceId"] | "";
   configured = !serverUrl.empty() && !token.empty() && !hardwareId.empty();
@@ -208,11 +263,15 @@ bool CloudClient::saveConfig(const std::string& url, const std::string& hwId, co
 }
 
 std::string CloudClient::deriveHardwareId() {
-  // WiFi.macAddress() returns the STA MAC formatted as "AA:BB:CC:DD:EE:FF".
-  // Lowercase it for stable comparison (cloud server stores it as-sent).
-  String mac = WiFi.macAddress();
-  mac.toLowerCase();
-  return mac.c_str();
+  // Read the factory MAC straight from eFuse — WiFi.macAddress() returns all
+  // zeros until WiFi.begin() runs, but begin() is called from setup() before
+  // the WiFi stack is up (the connect step waits for WiFi internally). Using
+  // esp_read_mac() means the hwId is stable from the very first call.
+  uint8_t mac[6] = {0};
+  esp_read_mac(mac, ESP_MAC_WIFI_STA);
+  char buf[13];
+  snprintf(buf, sizeof(buf), "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return std::string(buf);
 }
 
 bool CloudClient::pairDevice(const std::string& baseHttpUrl, const std::string& code, const std::string& deviceName) {
@@ -222,14 +281,54 @@ bool CloudClient::pairDevice(const std::string& baseHttpUrl, const std::string& 
   }
   if (hardwareId.empty()) hardwareId = deriveHardwareId();
 
-  HTTPClient http;
-  WiFiClientSecure secureClient;
   bool ssl = baseHttpUrl.rfind("https://", 0) == 0;
   std::string url = baseHttpUrl + "/api/devices/pair";
 
+  // Pull host:port out of the base URL so we can pre-flight a raw TCP/TLS
+  // connect — HTTPClient swallows mbedTLS errors and reports them all as -1.
+  std::string host;
+  uint16_t port = ssl ? 443 : 80;
+  {
+    size_t schemeLen = ssl ? 8 : 7;
+    if (baseHttpUrl.size() <= schemeLen) {
+      LOG_ERR("CLOUD", "pair: malformed url '%s'", baseHttpUrl.c_str());
+      return false;
+    }
+    std::string rest = baseHttpUrl.substr(schemeLen);
+    size_t colon = rest.find(':');
+    size_t slash = rest.find('/');
+    size_t end =
+        std::min(colon == std::string::npos ? rest.size() : colon, slash == std::string::npos ? rest.size() : slash);
+    host = rest.substr(0, end);
+    if (colon != std::string::npos && colon < slash) {
+      port = static_cast<uint16_t>(strtoul(rest.c_str() + colon + 1, nullptr, 10));
+    }
+  }
+
+  LOG_INF("CLOUD", "pair: target=%s:%u ssl=%d freeHeap=%u maxAlloc=%u", host.c_str(), port, ssl ? 1 : 0,
+          ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+
+  HTTPClient http;
+  WiFiClientSecure secureClient;
+
   bool ok;
   if (ssl) {
-    secureClient.setInsecure();  // dev only — replace with cert for prod
+    secureClient.setInsecure();  // pairing relies on the token, not on cert pinning
+    secureClient.setHandshakeTimeout(15);
+    // Read timeout must absorb server-side DB cold-start retries (~30s
+    // worst case on Railway hibernated Postgres).
+    secureClient.setTimeout(45);
+
+    // Pre-flight: explicit TLS connect so we surface the actual mbedTLS
+    // error if the handshake fails. HTTPClient just returns -1 either way.
+    if (!secureClient.connect(host.c_str(), port)) {
+      char errBuf[128] = {0};
+      int errCode = secureClient.lastError(errBuf, sizeof(errBuf));
+      LOG_ERR("CLOUD", "pair: TLS connect failed code=%d hex=-0x%04x (%s) freeHeap=%u", errCode,
+              errCode < 0 ? -errCode : errCode, errBuf, ESP.getFreeHeap());
+      return false;
+    }
+    LOG_INF("CLOUD", "pair: TLS connected, reusing socket for HTTP request");
     ok = http.begin(secureClient, url.c_str());
   } else {
     ok = http.begin(url.c_str());
@@ -238,6 +337,9 @@ bool CloudClient::pairDevice(const std::string& baseHttpUrl, const std::string& 
     LOG_ERR("CLOUD", "pair: http begin failed");
     return false;
   }
+  // Long timeout to absorb Postgres cold-start retries on the server (Railway
+  // hibernates the DB after idle; pair route retries up to ~15s on its end).
+  http.setTimeout(40000);
   http.addHeader("Content-Type", "application/json");
 
   JsonDocument req;
@@ -250,7 +352,12 @@ bool CloudClient::pairDevice(const std::string& baseHttpUrl, const std::string& 
 
   int status = http.POST(body);
   if (status != 200) {
-    LOG_ERR("CLOUD", "pair: HTTP %d", status);
+    // Pull the body too — server returns {error, code, message} on 4xx/5xx,
+    // which makes diagnosing a missing migration / FK violation possible
+    // without grepping cloud logs.
+    String resp = http.getString();
+    LOG_ERR("CLOUD", "pair: HTTP %d (errno=%s) body=%s", status, http.errorToString(status).c_str(),
+            resp.length() ? resp.c_str() : "<empty>");
     http.end();
     return false;
   }
@@ -285,7 +392,56 @@ bool CloudClient::pairDevice(const std::string& baseHttpUrl, const std::string& 
   deviceId = newDeviceId;
   configured = true;
 
-  if (connected) ws.disconnect();  // task will reconnect with new credentials
+  needsRestart = true;  // task will reconnect with new credentials
   LOG_INF("CLOUD", "paired: deviceId=%s", deviceId.c_str());
+  return true;
+}
+
+bool CloudClient::setServerUrl(const std::string& wsUrl) {
+  ParsedUrl u = parseUrl(wsUrl);
+  if (!u.valid) {
+    LOG_ERR("CLOUD", "setServerUrl: invalid url '%s'", wsUrl.c_str());
+    return false;
+  }
+  if (hardwareId.empty()) hardwareId = deriveHardwareId();
+  // Persist, preserving existing token/deviceId if any.
+  if (!saveConfig(wsUrl, hardwareId, token, deviceId)) {
+    LOG_ERR("CLOUD", "setServerUrl: save failed");
+    return false;
+  }
+  serverUrl = wsUrl;
+  configured = !token.empty();  // still need a token to actually connect
+  needsRestart = true;
+  LOG_INF("CLOUD", "server url set to %s (paired=%d)", wsUrl.c_str(), configured ? 1 : 0);
+  return true;
+}
+
+bool CloudClient::pairWithCode(const std::string& code, const std::string& deviceName) {
+  if (serverUrl.empty()) {
+    LOG_ERR("CLOUD", "pairWithCode: server URL not set");
+    return false;
+  }
+  std::string baseHttp = toBaseHttpUrl(serverUrl);
+  if (baseHttp.empty()) {
+    LOG_ERR("CLOUD", "pairWithCode: cannot derive http URL from '%s'", serverUrl.c_str());
+    return false;
+  }
+  return pairDevice(baseHttp, code, deviceName);
+}
+
+bool CloudClient::forgetDevice() {
+  // Drop runtime state so the task loop tears down the live socket.
+  token.clear();
+  deviceId.clear();
+  configured = false;
+  needsRestart = true;
+
+  if (Storage.exists(CONFIG_PATH)) {
+    if (!Storage.remove(CONFIG_PATH)) {
+      LOG_ERR("CLOUD", "forgetDevice: failed to remove %s", CONFIG_PATH);
+      return false;
+    }
+  }
+  LOG_INF("CLOUD", "device unpaired");
   return true;
 }

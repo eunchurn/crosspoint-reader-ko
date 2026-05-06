@@ -413,10 +413,15 @@ void loop() {
     }
   }
 
-  // Check for any user activity (button press or release) or active background work
+  // Check for any user activity (button press or release) or active background work.
+  // The cloud tunnel is treated as ongoing background work — once a paired
+  // device is connected to the cloud relay, deep-sleep would tear down the
+  // socket and force the dashboard to wait through the next reconnect cycle
+  // (~5s after wake). Keeping the device awake while the tunnel is up
+  // matches the "always-on for the dashboard" expectation.
   static unsigned long lastActivityTime = millis();
   if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || halTiltSensor.hadActivity() ||
-      activityManager.preventAutoSleep()) {
+      activityManager.preventAutoSleep() || CloudClient::getInstance().isConnected()) {
     lastActivityTime = millis();         // Reset inactivity timer
     powerManager.setPowerSaving(false);  // Restore normal CPU frequency on user activity
   }
