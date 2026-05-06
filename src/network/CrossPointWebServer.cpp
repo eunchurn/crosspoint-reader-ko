@@ -130,6 +130,11 @@ void CrossPointWebServer::begin() {
     return;
   }
 
+  // Enable CORS so external web pages can call the API (e.g. uploaders hosted
+  // elsewhere posting to http://crosspoint.local/upload). Adds
+  // Access-Control-Allow-Origin/Methods/Headers to every response.
+  server->enableCORS(true);
+
   // Setup routes
   LOG_DBG("WEB", "Setting up routes...");
   server->on("/", HTTP_GET, [this] { handleRoot(); });
@@ -335,6 +340,13 @@ void CrossPointWebServer::handleJszip() const {
 }
 
 void CrossPointWebServer::handleNotFound() const {
+  // CORS preflight: browsers send OPTIONS before non-simple cross-origin
+  // POSTs (e.g. application/json). The framework does not auto-handle this,
+  // so reply 200 here — enableCORS(true) attaches the Allow-* headers.
+  if (server->method() == HTTP_OPTIONS) {
+    server->send(204);
+    return;
+  }
   String message = "404 Not Found\n\n";
   message += "URI: " + server->uri() + "\n";
   server->send(404, "text/plain", message);

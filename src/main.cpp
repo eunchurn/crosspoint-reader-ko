@@ -28,6 +28,7 @@
 #include "activities/settings/SdFirmwareUpdateActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "io/SerialFileBridge.h"
 #include "util/ButtonNavigator.h"
 #include "util/ScreenshotUtil.h"
 
@@ -259,15 +260,22 @@ void setup() {
   halClock.begin();
   halTiltSensor.begin();
 
-#ifdef ENABLE_SERIAL_LOG
+  // Bring up USB CDC unconditionally when connected: the SerialFileBridge
+  // needs read access regardless of whether logging is compiled in.
+  // ARDUINO_USB_CDC_ON_BOOT=1 means HWCDC is already running by the time we
+  // get here — but setRxBufferSize() is a no-op once running, so end() then
+  // re-begin() with the larger buffer. Default 256 B overflows for the SLIP
+  // frames the bridge expects.
   if (gpio.isUsbConnected()) {
-    Serial.begin(115200);
+    logSerial.end();
+    const size_t actualRx = logSerial.setRxBufferSize(16384);
+    SerialFileBridge::setRxBufferReportedSize(actualRx);
+    logSerial.begin(115200);
     const unsigned long start = millis();
-    while (!Serial && (millis() - start) < 500) {
+    while (!logSerial && (millis() - start) < 500) {
       delay(10);
     }
   }
-#endif
 
   LOG_INF("MAIN", "Hardware detect: %s", gpio.deviceIsX3() ? "X3" : "X4");
 
@@ -278,6 +286,12 @@ void setup() {
     setupDisplayAndFonts();
     activityManager.goToFullScreenMessage("SD card error", EpdFontFamily::BOLD);
     return;
+  }
+
+  // Start the WebSerial file-transfer bridge. Reads from USB CDC, dispatches
+  // SLIP-framed file commands. Coexists with text logging on the same wire.
+  if (gpio.isUsbConnected()) {
+    SerialFileBridge::getInstance().begin();
   }
 
   HalSystem::checkPanic();
