@@ -29,6 +29,7 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "io/SerialFileBridge.h"
+#include "network/CloudClient.h"
 #include "util/ButtonNavigator.h"
 #include "util/ScreenshotUtil.h"
 
@@ -293,6 +294,10 @@ void setup() {
   if (gpio.isUsbConnected()) {
     SerialFileBridge::getInstance().begin();
   }
+
+  // Start the cloud reverse-tunnel client. Self-checks for /.crosspoint/cloud.json
+  // and waits for WiFi internally — safe to call unconditionally.
+  CloudClient::getInstance().begin();
 
   HalSystem::checkPanic();
 

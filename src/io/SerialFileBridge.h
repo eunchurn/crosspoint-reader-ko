@@ -1,10 +1,9 @@
 #pragma once
 
-#include <HalStorage.h>
-
 #include <cstdint>
-#include <string>
 #include <vector>
+
+#include "FileCommands.h"
 
 // USB-CDC bridge that exposes SD-card file operations to a host running in a
 // browser via the WebSerial API. Wire format is SLIP-framed binary; logging
@@ -13,14 +12,11 @@
 //
 // Frame layout (after SLIP decoding):
 //   [u8 opcode][u16 reqid LE][payload...]
-// Response opcode = request opcode | 0x80, except errors which use 0xFF.
-// All multi-byte integers are little-endian.
+// Actual command processing is delegated to FileCommands::dispatch so the
+// CloudClient (WebSocket transport) shares the exact same logic.
 class SerialFileBridge {
  public:
   static SerialFileBridge& getInstance();
-
-  // Spawn the FreeRTOS task. Safe to call once during setup() after
-  // Storage.begin(). No-op if already started.
   void begin();
 
   // Surface the value returned by HWCDC.setRxBufferSize() so the host can
@@ -35,47 +31,21 @@ class SerialFileBridge {
   void taskLoop();
 
   void feedByte(uint8_t b);
-  void handleFrame();
-  void dispatch(uint8_t opcode, uint16_t reqid, const uint8_t* payload, size_t len);
-
-  void handlePing(uint16_t reqid);
-  void handleListDir(uint16_t reqid, const uint8_t* p, size_t n);
-  void handleStat(uint16_t reqid, const uint8_t* p, size_t n);
-  void handleRead(uint16_t reqid, const uint8_t* p, size_t n);
-  void handleWriteBegin(uint16_t reqid, const uint8_t* p, size_t n);
-  void handleWriteChunk(uint16_t reqid, const uint8_t* p, size_t n);
-  void handleWriteEnd(uint16_t reqid, const uint8_t* p, size_t n);
-  void handleDelete(uint16_t reqid, const uint8_t* p, size_t n);
-  void handleMkdir(uint16_t reqid, const uint8_t* p, size_t n);
-  void handleRename(uint16_t reqid, const uint8_t* p, size_t n);
-  void abortActiveWrite();
-
-  void sendOk(uint8_t opcode, uint16_t reqid, const uint8_t* payload, size_t len);
-  void sendError(uint16_t reqid, uint8_t code, const char* msg);
   void writeFrame(const uint8_t* data, size_t len);
 
-  // SLIP decode state. rxFrame buffer accumulates decoded payload (header +
-  // body). Hard cap protects RAM if host sends garbage.
+  // FrameSink callback registered with FileCommands::Context.
+  static void sinkSend(void* ctx, const uint8_t* data, size_t len);
+
   static constexpr size_t MAX_FRAME_SIZE = 8192;
   std::vector<uint8_t> rxFrame;
   bool rxEscape = false;
   bool rxStarted = false;
 
-  // Reusable transmit scratch (avoids per-call heap churn).
-  std::vector<uint8_t> txScratch;
-
-  // Single in-flight upload session. Keep simple: one writer at a time.
-  struct WriteSession {
-    bool active = false;
-    uint16_t id = 0;
-    uint64_t totalSize = 0;
-    uint64_t writtenSize = 0;
-    HalFile file;
-  };
-  WriteSession writeSession;
-  uint16_t nextSessionId = 1;
+  FileCommands::Context cmdCtx;
+  // Per-instance ping suffix kept alive (stored in cmdCtx.pingTagSuffix as
+  // a non-owning pointer, so own the storage here).
+  char pingSuffix[24] = {};
 
   bool started = false;
-
   static size_t rxBufferReportedSize;
 };
