@@ -67,8 +67,11 @@ class CloudClient {
   // back to WStype_t inside the .cpp.
   void onWsEvent(int type, uint8_t* payload, size_t length);
 
-  // FrameSink callback registered with FileCommands::Context.
-  static void sinkSend(void* ctx, const uint8_t* data, size_t len);
+  // FrameSink callback registered with FileCommands::Context. Returns
+  // false when the WS lib couldn't accept the bytes (typically TLS
+  // record alloc failure under heap pressure) so streaming pumps can
+  // retry instead of advancing past lost data.
+  static bool sinkSend(void* ctx, const uint8_t* data, size_t len);
 
   // Persisted config
   std::string serverUrl;  // full ws://… or wss://… URL

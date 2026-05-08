@@ -44,21 +44,27 @@ constexpr uint8_t ERR_NOT_DIR = 0x06;
 constexpr uint8_t ERR_IS_DIR = 0x07;
 constexpr uint8_t ERR_OOM = 0x08;
 
-// 2 KiB per chunk: each chunk is one full RTT (browser → cloud → device →
-// cloud → browser), so throughput is ~chunkSize / RTT. Bigger is faster
-// but the transient peak (WS RX buffer + scratch + SD write) has to fit
-// into MaxAlloc, which dips below 3 KiB during cloud uploads on a loaded
-// reader. 4 KiB caused mid-upload disconnects (allocation failure inside
-// the WS lib closes the socket); 2 KiB sits comfortably under that floor
-// at the cost of halving throughput.
-constexpr size_t MAX_READ_CHUNK = 2048;
+// Chunk sizing — must fit inside the device's MaxAlloc on a loaded
+// reader, which can dip below 2.5 KiB after deep-path SdFat opens
+// fragment the heap. Reads use the smaller bound because OP_READ
+// pumping happens while a HalFile is already open (path traversal +
+// LFN scratch + SdFat sector cache pinned in heap) — at 2 KiB the WS
+// lib's TLS-record send buffer alloc started failing and the socket
+// silently closed mid-stream.
+constexpr size_t MAX_READ_CHUNK = 1024;
 constexpr size_t MAX_WRITE_CHUNK = 2048;
 
 // Output frame sink. Receives a raw response frame (opcode|RESPONSE_BIT,
 // reqid LE, payload). The sink is responsible for any transport framing.
+//
+// Returns true on success. A false return signals "transient failure"
+// (e.g., the WS lib's TLS-record alloc failed because the device is
+// memory-pressured) so the streaming path can hold off advancing
+// sentSize and retry on the next pump tick instead of silently
+// truncating the stream.
 struct FrameSink {
   void* ctx = nullptr;
-  void (*send)(void* ctx, const uint8_t* data, size_t len) = nullptr;
+  bool (*send)(void* ctx, const uint8_t* data, size_t len) = nullptr;
 };
 
 struct WriteSession {

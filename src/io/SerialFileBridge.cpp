@@ -105,8 +105,9 @@ void SerialFileBridge::feedByte(uint8_t b) {
   rxFrame.push_back(b);
 }
 
-void SerialFileBridge::sinkSend(void* ctx, const uint8_t* data, size_t len) {
+bool SerialFileBridge::sinkSend(void* ctx, const uint8_t* data, size_t len) {
   static_cast<SerialFileBridge*>(ctx)->writeFrame(data, len);
+  return true;
 }
 
 void SerialFileBridge::writeFrame(const uint8_t* data, size_t len) {

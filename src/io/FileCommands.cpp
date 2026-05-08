@@ -515,7 +515,12 @@ void pumpReadStream(Context& ctx) {
     frame.push_back((ctx.readStream.reqid >> 8) & 0xFF);
     frame.push_back(end[0]);
     frame.push_back(end[1]);
-    if (ctx.sink.send) ctx.sink.send(ctx.sink.ctx, frame.data(), frame.size());
+    if (ctx.sink.send) {
+      // Don't tear down the stream until END is on the wire — if the
+      // sink can't take it right now, leave state in place and retry on
+      // the next pump tick.
+      if (!ctx.sink.send(ctx.sink.ctx, frame.data(), frame.size())) return;
+    }
 
     ctx.readStream.file.close();
     ctx.readStream.active = false;
@@ -529,6 +534,16 @@ void pumpReadStream(Context& ctx) {
   ctx.txScratch[1] = ctx.readStream.reqid & 0xFF;
   ctx.txScratch[2] = (ctx.readStream.reqid >> 8) & 0xFF;
   writeU16LE(ctx.txScratch.data() + 3, ctx.readStream.id);
+  // Re-read on every retry: the file's seek position only advances
+  // after a successful send below, so this stays idempotent even when
+  // we bail out partway through.
+  const uint32_t seekTarget = static_cast<uint32_t>(ctx.readStream.sentSize);
+  if (!ctx.readStream.file.seekSet(seekTarget)) {
+    ctx.readStream.file.close();
+    ctx.readStream.active = false;
+    sendError(ctx, ctx.readStream.reqid, ERR_IO, "seek failed");
+    return;
+  }
   int got = ctx.readStream.file.read(ctx.txScratch.data() + 3 + 2, want);
   if (got <= 0) {
     // Read failure mid-stream: surface as OP_ERROR and stop streaming.
@@ -538,7 +553,12 @@ void pumpReadStream(Context& ctx) {
     return;
   }
   ctx.txScratch.resize(3 + 2 + static_cast<size_t>(got));
-  if (ctx.sink.send) ctx.sink.send(ctx.sink.ctx, ctx.txScratch.data(), ctx.txScratch.size());
+  if (ctx.sink.send) {
+    // Honour the sink's success bit: a transient false (TLS-record
+    // alloc failed because the device is heap-fragmented under SD-load)
+    // would otherwise show up as a silently truncated download.
+    if (!ctx.sink.send(ctx.sink.ctx, ctx.txScratch.data(), ctx.txScratch.size())) return;
+  }
   ctx.readStream.sentSize += static_cast<uint64_t>(got);
 }
 

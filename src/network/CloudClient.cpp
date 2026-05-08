@@ -222,9 +222,13 @@ void CloudClient::onWsEvent(int type, uint8_t* payload, size_t length) {
   }
 }
 
-void CloudClient::sinkSend(void* /*ctx*/, const uint8_t* data, size_t len) {
+bool CloudClient::sinkSend(void* /*ctx*/, const uint8_t* data, size_t len) {
   // const_cast: WebSocketsClient takes non-const buffer but does not modify.
-  ws.sendBIN(const_cast<uint8_t*>(data), len);
+  // sendBIN returns false on transient send failure (TLS record alloc
+  // failure, TCP buffer full + non-blocking, etc.) — surfacing it lets
+  // the streaming pump retry on the next loop tick instead of advancing
+  // its position on lost bytes.
+  return ws.sendBIN(const_cast<uint8_t*>(data), len);
 }
 
 bool CloudClient::loadConfig() {

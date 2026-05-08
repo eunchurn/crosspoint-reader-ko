@@ -33,8 +33,11 @@ class SerialFileBridge {
   void feedByte(uint8_t b);
   void writeFrame(const uint8_t* data, size_t len);
 
-  // FrameSink callback registered with FileCommands::Context.
-  static void sinkSend(void* ctx, const uint8_t* data, size_t len);
+  // FrameSink callback registered with FileCommands::Context. Returns
+  // true; USB-CDC writes don't have a transient-failure mode the
+  // streaming pump needs to retry on (the underlying buffer always
+  // accepts the bytes).
+  static bool sinkSend(void* ctx, const uint8_t* data, size_t len);
 
   static constexpr size_t MAX_FRAME_SIZE = 8192;
   std::vector<uint8_t> rxFrame;
