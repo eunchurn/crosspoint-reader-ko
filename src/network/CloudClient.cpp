@@ -154,6 +154,11 @@ void CloudClient::taskLoop() {
     needsRestart = false;
     while (configured && !needsRestart) {
       ws.loop();
+      // Drive any in-flight OP_READ_BEGIN stream forward — the handler
+      // sets up state on the first frame, this is what actually pushes
+      // OP_READ_DATA frames out without bottlenecking on per-chunk
+      // request/response RTT.
+      FileCommands::pumpReadStream(cmdCtx);
       vTaskDelay(pdMS_TO_TICKS(5));
     }
 

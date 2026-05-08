@@ -305,11 +305,78 @@ void handleWriteEnd(Context& ctx, uint16_t reqid, const uint8_t* p, size_t n) {
     sendError(ctx, reqid, ERR_NO_SESSION, "no matching session");
     return;
   }
+  const bool failed = ctx.writeSession.failed;
   ctx.writeSession.file.flush();
   ctx.writeSession.file.close();
   ctx.writeSession.active = false;
   ctx.writeSession.id = 0;
+  ctx.writeSession.failed = false;
+  if (failed) {
+    sendError(ctx, reqid, ERR_IO, "stream had write failure");
+    return;
+  }
   sendOk(ctx, OP_WRITE_END, reqid, nullptr, 0);
+}
+
+// Fire-and-forget chunk for streaming uploads. Same wire layout as
+// OP_WRITE_CHUNK minus the per-chunk response — caller batches many of
+// these between OP_WRITE_BEGIN and OP_WRITE_END, and gets a final pass/
+// fail at OP_WRITE_END time. Removing the round-trip is what closes the
+// throughput gap with the firmware's WiFi web server.
+void handleWriteData(Context& ctx, const uint8_t* p, size_t n) {
+  if (n < 2) return;  // no reqid to respond on; just drop malformed
+  uint16_t sid = readU16LE(p);
+  if (!ctx.writeSession.active || ctx.writeSession.id != sid) return;
+  if (ctx.writeSession.failed) return;  // already in failed state
+  if (n < 2u) return;
+  const uint8_t* data = p + 2;
+  const size_t dataLen = n - 2;
+  if (dataLen == 0) return;
+  size_t written = ctx.writeSession.file.write(data, dataLen);
+  if (written != dataLen) {
+    ctx.writeSession.failed = true;
+    return;
+  }
+  ctx.writeSession.writtenSize += dataLen;
+}
+
+void handleReadBegin(Context& ctx, uint16_t reqid, const uint8_t* p, size_t n) {
+  std::string path;
+  if (!popLString(p, n, path)) {
+    sendError(ctx, reqid, ERR_BAD_REQUEST, "bad read_begin args");
+    return;
+  }
+  if (ctx.readStream.active) {
+    // Drop any prior stream — the new request wins.
+    ctx.readStream.file.close();
+    ctx.readStream.active = false;
+  }
+  HalFile f = Storage.open(path.c_str(), O_RDONLY);
+  if (!f) {
+    sendError(ctx, reqid, ERR_NOT_FOUND, "not found");
+    return;
+  }
+  if (f.isDirectory()) {
+    f.close();
+    sendError(ctx, reqid, ERR_IS_DIR, "is a directory");
+    return;
+  }
+  const uint64_t size = f.size();
+  uint16_t sid = ctx.nextSessionId++;
+  if (ctx.nextSessionId == 0) ctx.nextSessionId = 1;
+  ctx.readStream.active = true;
+  ctx.readStream.id = sid;
+  ctx.readStream.reqid = reqid;
+  ctx.readStream.totalSize = size;
+  ctx.readStream.sentSize = 0;
+  ctx.readStream.file = std::move(f);
+
+  uint8_t resp[2 + 8];
+  writeU16LE(resp, sid);
+  writeU64LE(resp + 2, size);
+  sendOk(ctx, OP_READ_BEGIN, reqid, resp, sizeof(resp));
+  // Subsequent OP_READ_DATA frames are emitted by pumpReadStream() from
+  // the transport's main loop — keeps the WS RX loop unblocked.
 }
 
 void handleDelete(Context& ctx, uint16_t reqid, const uint8_t* p, size_t n) {
@@ -401,6 +468,12 @@ void dispatch(Context& ctx, const uint8_t* frame, size_t frameLen) {
     case OP_RENAME:
       handleRename(ctx, reqid, payload, plen);
       break;
+    case OP_WRITE_DATA:
+      handleWriteData(ctx, payload, plen);
+      break;
+    case OP_READ_BEGIN:
+      handleReadBegin(ctx, reqid, payload, plen);
+      break;
     default:
       sendError(ctx, reqid, ERR_BAD_REQUEST, "unknown opcode");
       break;
@@ -412,9 +485,61 @@ void reset(Context& ctx) {
     ctx.writeSession.file.close();
     ctx.writeSession.active = false;
     ctx.writeSession.id = 0;
+    ctx.writeSession.failed = false;
+  }
+  if (ctx.readStream.active) {
+    ctx.readStream.file.close();
+    ctx.readStream.active = false;
+    ctx.readStream.id = 0;
   }
   ctx.txScratch.clear();
   ctx.txScratch.shrink_to_fit();
+}
+
+void pumpReadStream(Context& ctx) {
+  if (!ctx.readStream.active) return;
+  // Reuse a single send-side scratch buffer per stream rather than
+  // allocating per chunk — this is the same trick the firmware's HTTP
+  // server uses for its 8 KiB upload buffer, and it keeps cloud-relayed
+  // downloads off the per-frame heap-alloc treadmill.
+  const uint64_t remaining = ctx.readStream.totalSize - ctx.readStream.sentSize;
+  if (remaining == 0) {
+    uint8_t end[2];
+    writeU16LE(end, ctx.readStream.id);
+    // Send unsolicited OP_READ_END echoing the original reqid so the
+    // cloud relay knows which HTTP response to close.
+    std::vector<uint8_t> frame;
+    frame.reserve(3 + 2);
+    frame.push_back(OP_READ_END | OP_RESPONSE_BIT);
+    frame.push_back(ctx.readStream.reqid & 0xFF);
+    frame.push_back((ctx.readStream.reqid >> 8) & 0xFF);
+    frame.push_back(end[0]);
+    frame.push_back(end[1]);
+    if (ctx.sink.send) ctx.sink.send(ctx.sink.ctx, frame.data(), frame.size());
+
+    ctx.readStream.file.close();
+    ctx.readStream.active = false;
+    ctx.readStream.id = 0;
+    return;
+  }
+
+  size_t want = remaining > MAX_READ_CHUNK ? MAX_READ_CHUNK : static_cast<size_t>(remaining);
+  ctx.txScratch.resize(3 + 2 + want);
+  ctx.txScratch[0] = OP_READ_DATA | OP_RESPONSE_BIT;
+  ctx.txScratch[1] = ctx.readStream.reqid & 0xFF;
+  ctx.txScratch[2] = (ctx.readStream.reqid >> 8) & 0xFF;
+  writeU16LE(ctx.txScratch.data() + 3, ctx.readStream.id);
+  int got = ctx.readStream.file.read(ctx.txScratch.data() + 3 + 2, want);
+  if (got <= 0) {
+    // Read failure mid-stream: surface as OP_ERROR and stop streaming.
+    ctx.readStream.file.close();
+    ctx.readStream.active = false;
+    sendError(ctx, ctx.readStream.reqid, ERR_IO, "read failed");
+    return;
+  }
+  ctx.txScratch.resize(3 + 2 + static_cast<size_t>(got));
+  if (ctx.sink.send) ctx.sink.send(ctx.sink.ctx, ctx.txScratch.data(), ctx.txScratch.size());
+  ctx.readStream.sentSize += static_cast<uint64_t>(got);
 }
 
 }  // namespace FileCommands

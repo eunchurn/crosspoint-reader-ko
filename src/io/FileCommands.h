@@ -24,6 +24,14 @@ constexpr uint8_t OP_WRITE_END = 0x07;
 constexpr uint8_t OP_DELETE = 0x08;
 constexpr uint8_t OP_MKDIR = 0x09;
 constexpr uint8_t OP_RENAME = 0x0A;
+// Streaming I/O: skip the per-chunk request/response RTT that bottlenecks
+// uploads/downloads relayed through the cloud. Cloud sends WRITE_BEGIN +
+// many WRITE_DATA (fire-and-forget) + WRITE_END; device pushes READ_DATA
+// frames after a single READ_BEGIN.
+constexpr uint8_t OP_WRITE_DATA = 0x16;  // cloud → device, no response
+constexpr uint8_t OP_READ_BEGIN = 0x17;  // request response: sid + totalSize
+constexpr uint8_t OP_READ_DATA = 0x18;   // device → cloud, unsolicited (reqid = READ_BEGIN's)
+constexpr uint8_t OP_READ_END = 0x19;    // device → cloud, unsolicited
 constexpr uint8_t OP_ERROR = 0xFF;
 constexpr uint8_t OP_RESPONSE_BIT = 0x80;
 
@@ -58,6 +66,21 @@ struct WriteSession {
   uint16_t id = 0;
   uint64_t totalSize = 0;
   uint64_t writtenSize = 0;
+  // OP_WRITE_DATA is fire-and-forget — if a chunk write fails mid-stream
+  // we have no response channel to surface it on. Latch the failure here
+  // so OP_WRITE_END can return ERR_IO instead of silently truncating.
+  bool failed = false;
+  HalFile file;
+};
+
+struct ReadStream {
+  bool active = false;
+  uint16_t id = 0;
+  // The reqid of the OP_READ_BEGIN that opened this stream — DATA/END
+  // frames echo the same reqid so the cloud can route them.
+  uint16_t reqid = 0;
+  uint64_t totalSize = 0;
+  uint64_t sentSize = 0;
   HalFile file;
 };
 
@@ -66,6 +89,7 @@ struct WriteSession {
 struct Context {
   FrameSink sink;
   WriteSession writeSession;
+  ReadStream readStream;
   uint16_t nextSessionId = 1;
   std::vector<uint8_t> txScratch;
   // Optional firmware-tag suffix returned in PING (e.g. "rxNNNN" for
@@ -83,5 +107,11 @@ void dispatch(Context& ctx, const uint8_t* frame, size_t frameLen);
 // mid-upload — without it the leaked HalFile keeps an SdFat sector
 // buffer pinned, slowly bleeding heap across reconnect cycles.
 void reset(Context& ctx);
+
+// Drive an active OP_READ_BEGIN stream forward by one chunk: read the
+// next MAX_READ_CHUNK bytes from SD and emit one OP_READ_DATA frame.
+// When EOF is reached, emits OP_READ_END and clears the stream state.
+// No-op if no stream is active. Call from the transport's main loop.
+void pumpReadStream(Context& ctx);
 
 }  // namespace FileCommands
