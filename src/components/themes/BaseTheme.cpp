@@ -5,6 +5,7 @@
 #include <HalPowerManager.h>
 #include <HalStorage.h>
 #include <Logging.h>
+#include <WiFi.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -78,6 +79,25 @@ void BaseTheme::drawBatteryLightningBolt(const GfxRenderer& renderer, int boltX,
   renderer.drawLine(boltX + 1, boltY + 5, boltX + 4, boltY + 5, false);
   renderer.drawLine(boltX + 2, boltY + 6, boltX + 3, boltY + 6, false);
   renderer.drawLine(boltX + 1, boltY + 7, boltX + 2, boltY + 7, false);
+}
+
+bool BaseTheme::isWifiConnected() {
+  // STA-mode association is the case CloudClient + WebServer both treat
+  // as "online", so use the same predicate for the visual indicator.
+  return WiFi.status() == WL_CONNECTED;
+}
+
+void BaseTheme::drawWifiIcon(const GfxRenderer& renderer, int x, int y) {
+  // Stair-step "signal bars" — four 2-px-wide bars of increasing height,
+  // each separated by a 1-px gap. Reads as a connectivity indicator at
+  // the same scale as the 12-px-tall battery icon to its right.
+  // Origin is the icon's top-left; total footprint is wifiIconWidth × wifiIconHeight.
+  for (int i = 0; i < 4; ++i) {
+    const int barX = x + i * 3;
+    const int barHeight = 3 + i * 2;  // 3, 5, 7, 9
+    const int barY = y + (wifiIconHeight - barHeight);
+    renderer.fillRect(barX, barY, 2, barHeight);
+  }
 }
 
 void BaseTheme::drawBatteryLeft(const GfxRenderer& renderer, Rect rect, const bool showPercentage) const {
@@ -306,9 +326,11 @@ void BaseTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, 
 }
 
 void BaseTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* title, const char* subtitle) const {
-  // Hide last battery draw
+  // Hide last battery draw — widen the clear band to also cover the WiFi
+  // icon slot so a freshly-disconnected WiFi state doesn't leave ghosts.
   constexpr int maxBatteryWidth = 80;
-  renderer.fillRect(rect.x + rect.width - maxBatteryWidth, rect.y + 5, maxBatteryWidth,
+  const int clearWidth = maxBatteryWidth + wifiIconWidth + wifiBatterySpacing;
+  renderer.fillRect(rect.x + rect.width - clearWidth, rect.y + 5, clearWidth,
                     BaseMetrics::values.batteryHeight + 10, false);
 
   const bool showBatteryPercentage =
@@ -318,6 +340,18 @@ void BaseTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* t
   drawBatteryRight(renderer,
                    Rect{batteryX, rect.y + 5, BaseMetrics::values.batteryWidth, BaseMetrics::values.batteryHeight},
                    showBatteryPercentage);
+
+  // WiFi indicator sits to the left of the battery group. The percentage
+  // text (when shown) is to the immediate left of the battery icon, so we
+  // approximate its width with a 4-character slot ("100%") to leave room.
+  if (isWifiConnected()) {
+    const int percentageSlot = showBatteryPercentage
+                                   ? renderer.getTextWidth(SMALL_FONT_ID, "100%") + batteryPercentSpacing
+                                   : 0;
+    const int wifiX = batteryX - percentageSlot - wifiBatterySpacing - wifiIconWidth;
+    const int wifiY = rect.y + 5 + (BaseMetrics::values.batteryHeight - wifiIconHeight) / 2;
+    drawWifiIcon(renderer, wifiX, wifiY);
+  }
 
   if (title) {
     int padding = rect.width - batteryX + BaseMetrics::values.batteryWidth;

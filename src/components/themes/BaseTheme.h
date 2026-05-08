@@ -147,4 +147,15 @@ class BaseTheme {
   static constexpr int batteryPercentSpacing = 4;
   static void drawBatteryOutline(const GfxRenderer& renderer, int x, int y, int battWidth, int rectHeight);
   static void drawBatteryLightningBolt(const GfxRenderer& renderer, int boltX, int boltY);
+
+  // WiFi indicator: 4-step "signal bars" rendered procedurally so it
+  // matches the battery icon's monochrome style without shipping a
+  // dedicated bitmap. Width/height match the battery group so the
+  // header layout stays balanced.
+  static constexpr int wifiIconWidth = 11;
+  static constexpr int wifiIconHeight = 10;
+  static constexpr int wifiBatterySpacing = 6;
+  // Returns true if WiFi station mode is currently associated with an AP.
+  static bool isWifiConnected();
+  static void drawWifiIcon(const GfxRenderer& renderer, int x, int y);
 };

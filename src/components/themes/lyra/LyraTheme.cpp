@@ -150,6 +150,17 @@ void LyraTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* t
                    Rect{batteryX, rect.y + 5, LyraMetrics::values.batteryWidth, LyraMetrics::values.batteryHeight},
                    showBatteryPercentage);
 
+  // WiFi indicator: same placement logic as BaseTheme — sits left of the
+  // battery group, only when STA-mode is associated with an AP.
+  if (BaseTheme::isWifiConnected()) {
+    const int percentageSlot = showBatteryPercentage
+                                   ? renderer.getTextWidth(SMALL_FONT_ID, "100%") + BaseTheme::batteryPercentSpacing
+                                   : 0;
+    const int wifiX = batteryX - percentageSlot - BaseTheme::wifiBatterySpacing - BaseTheme::wifiIconWidth;
+    const int wifiY = rect.y + 5 + (LyraMetrics::values.batteryHeight - BaseTheme::wifiIconHeight) / 2;
+    BaseTheme::drawWifiIcon(renderer, wifiX, wifiY);
+  }
+
   int maxTitleWidth =
       rect.width - LyraMetrics::values.contentSidePadding * 2 - (subtitle != nullptr ? maxSubtitleWidth : 0);
 
