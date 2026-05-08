@@ -78,4 +78,10 @@ struct Context {
 // context's sink. Length must include the 3-byte header.
 void dispatch(Context& ctx, const uint8_t* frame, size_t frameLen);
 
+// Drop any in-flight write session (closes the open SD file handle).
+// Call this when the underlying transport (cloud WS, USB CDC) disconnects
+// mid-upload — without it the leaked HalFile keeps an SdFat sector
+// buffer pinned, slowly bleeding heap across reconnect cycles.
+void reset(Context& ctx);
+
 }  // namespace FileCommands

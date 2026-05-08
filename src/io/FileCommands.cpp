@@ -54,21 +54,6 @@ bool popLString(const uint8_t*& p, size_t& remaining, std::string& out) {
   return true;
 }
 
-// Diagnostic helper: emit the path's first 32 bytes as hex so we can
-// distinguish "wire delivered correct UTF-8" from "wire delivered mangled
-// bytes" when troubleshooting non-ASCII filenames over the cloud transport.
-void logPathBytes(const char* tag, const std::string& path) {
-  char hex[3 * 32 + 1];
-  size_t shown = path.size() < 32 ? path.size() : 32;
-  size_t pos = 0;
-  for (size_t i = 0; i < shown; ++i) {
-    pos += snprintf(hex + pos, sizeof(hex) - pos, "%02X ", static_cast<uint8_t>(path[i]));
-  }
-  if (pos > 0 && hex[pos - 1] == ' ') hex[pos - 1] = 0;
-  LOG_INF("CMD", "%s path[%u]='%s' hex=%s%s", tag, static_cast<unsigned>(path.size()), path.c_str(), hex,
-          path.size() > 32 ? "..." : "");
-}
-
 void sendOk(Context& ctx, uint8_t opcode, uint16_t reqid, const uint8_t* payload, size_t len) {
   std::vector<uint8_t> frame;
   frame.reserve(3 + len);
@@ -124,8 +109,6 @@ void handleListDir(Context& ctx, uint16_t reqid, const uint8_t* p, size_t n) {
   }
   if (path.empty()) path = "/";
 
-  logPathBytes("LIST_DIR", path);
-
   HalFile root = Storage.open(path.c_str());
   if (!root) {
     sendError(ctx, reqid, ERR_NOT_FOUND, "directory not found");
@@ -146,19 +129,6 @@ void handleListDir(Context& ctx, uint16_t reqid, const uint8_t* p, size_t n) {
   while (child) {
     size_t nameLen = child.getName(nameBuf, sizeof(nameBuf));
     if (nameLen > 0 && nameLen <= 255) {
-      // Log non-ASCII names so we can confirm SdFat is returning UTF-8
-      // (vs OEM 8.3 or mangled bytes) when the cloud listing renders weird.
-      bool nonAscii = false;
-      for (size_t i = 0; i < nameLen; ++i) {
-        if (static_cast<uint8_t>(nameBuf[i]) >= 0x80) {
-          nonAscii = true;
-          break;
-        }
-      }
-      if (nonAscii) {
-        std::string s(nameBuf, nameLen);
-        logPathBytes("LIST_DIR entry", s);
-      }
       bool isDir = child.isDirectory();
       uint64_t size = isDir ? 0 : child.size();
       size_t off = ctx.txScratch.size();
@@ -267,17 +237,10 @@ void handleWriteBegin(Context& ctx, uint16_t reqid, const uint8_t* p, size_t n) 
   }
   uint64_t totalSize = readU64LE(p);
 
-  // Emit the wire bytes so non-ASCII filename failures can be triaged: a
-  // correct UTF-8 here narrows the bug to SdFat / task stack; mangled hex
-  // points at the cloud → device transport.
-  logPathBytes("WRITE_BEGIN", path);
-
   if (ctx.writeSession.active) abortActiveWrite(ctx);
 
   HalFile f = Storage.open(path.c_str(), O_WRITE | O_CREAT | O_TRUNC);
   if (!f) {
-    LOG_ERR("CMD", "WRITE_BEGIN sd.open failed for path='%s' (size=%u)", path.c_str(),
-            static_cast<unsigned>(path.size()));
     sendError(ctx, reqid, ERR_IO, "cannot open for write");
     return;
   }
@@ -442,6 +405,16 @@ void dispatch(Context& ctx, const uint8_t* frame, size_t frameLen) {
       sendError(ctx, reqid, ERR_BAD_REQUEST, "unknown opcode");
       break;
   }
+}
+
+void reset(Context& ctx) {
+  if (ctx.writeSession.active) {
+    ctx.writeSession.file.close();
+    ctx.writeSession.active = false;
+    ctx.writeSession.id = 0;
+  }
+  ctx.txScratch.clear();
+  ctx.txScratch.shrink_to_fit();
 }
 
 }  // namespace FileCommands

@@ -190,6 +190,12 @@ void CloudClient::onWsEvent(int type, uint8_t* payload, size_t length) {
       // wrong status) apart from network drops.
       LOG_INF("CLOUD", "WS disconnected (was connected for %u ms) reason=\"%.*s\"", static_cast<unsigned>(lifetime),
               static_cast<int>(length > 96 ? 96 : length), payload ? reinterpret_cast<const char*>(payload) : "");
+      // Drop any in-flight upload state so the SD file handle and tx
+      // scratch buffer don't leak across reconnect cycles. Without this,
+      // every aborted upload pinned ~512 bytes of SdFat sector cache,
+      // and after a few attempts MaxAlloc collapsed below the WS RX
+      // buffer floor, causing the next transfer to die mid-flight.
+      FileCommands::reset(cmdCtx);
       break;
     }
     case WStype_BIN:
