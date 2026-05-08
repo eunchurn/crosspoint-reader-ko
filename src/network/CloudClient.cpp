@@ -91,7 +91,11 @@ void CloudClient::begin() {
   cmdCtx.pingTagSuffix = pingSuffix;
   cmdCtx.sink = {.ctx = this, .send = &CloudClient::sinkSend};
 
-  xTaskCreate(&CloudClient::taskTrampoline, "CloudClient", 8192, this, 1, nullptr);
+  // 16 KiB stack: SdFat's UTF-8 LFN conversion path uses deep call stacks
+  // with on-stack scratch buffers; 8 KiB was tight enough that non-ASCII
+  // sd.open() / getName() could overflow silently and produce mangled or
+  // missing files. Verified safe headroom in field with `uxTaskGetStackHighWaterMark`.
+  xTaskCreate(&CloudClient::taskTrampoline, "CloudClient", 16384, this, 1, nullptr);
   LOG_INF("CLOUD", "CloudClient task started; configured=%d", configured ? 1 : 0);
 }
 
