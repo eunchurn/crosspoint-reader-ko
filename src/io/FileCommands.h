@@ -36,13 +36,15 @@ constexpr uint8_t ERR_NOT_DIR = 0x06;
 constexpr uint8_t ERR_IS_DIR = 0x07;
 constexpr uint8_t ERR_OOM = 0x08;
 
-// 4 KiB per chunk: each chunk is one full RTT (browser → cloud → device →
-// cloud → browser), so throughput is ~chunkSize / RTT. Bigger is faster but
-// has to fit in DRAM alongside the WS RX buffer + scratch — at 4 KiB the
-// transient peak is well under the smallest free block we observe in the
-// field (~14 KiB MaxAlloc on a loaded device).
-constexpr size_t MAX_READ_CHUNK = 4096;
-constexpr size_t MAX_WRITE_CHUNK = 4096;
+// 2 KiB per chunk: each chunk is one full RTT (browser → cloud → device →
+// cloud → browser), so throughput is ~chunkSize / RTT. Bigger is faster
+// but the transient peak (WS RX buffer + scratch + SD write) has to fit
+// into MaxAlloc, which dips below 3 KiB during cloud uploads on a loaded
+// reader. 4 KiB caused mid-upload disconnects (allocation failure inside
+// the WS lib closes the socket); 2 KiB sits comfortably under that floor
+// at the cost of halving throughput.
+constexpr size_t MAX_READ_CHUNK = 2048;
+constexpr size_t MAX_WRITE_CHUNK = 2048;
 
 // Output frame sink. Receives a raw response frame (opcode|RESPONSE_BIT,
 // reqid LE, payload). The sink is responsible for any transport framing.
