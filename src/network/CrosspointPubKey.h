@@ -1,0 +1,18 @@
+// Ed25519 public key for CrossPoint OTA firmware-signature verification.
+//
+// Pairs with the private key registered as ED25519_PRIVATE_KEY in GitHub
+// Actions. See docs/firmware-signature-migration.md for rotation procedure.
+//
+// Generated: 2026-05-11T06:50:12Z
+// DO NOT EDIT BY HAND. Regenerate via scripts/gen_ota_keypair.py.
+
+#pragma once
+
+#include <cstdint>
+
+constexpr uint8_t kCrosspointOtaPubKey[32] = {
+    0x7b, 0x7e, 0xf1, 0xad, 0x4b, 0x1a, 0xdb, 0x7a,
+    0xde, 0x4d, 0x94, 0xed, 0x8f, 0x01, 0x5c, 0x03,
+    0xa9, 0xb1, 0x2f, 0xd3, 0xa4, 0x8e, 0x1c, 0x11,
+    0x17, 0xed, 0x78, 0x07, 0x39, 0xad, 0x38, 0x5f,
+};
