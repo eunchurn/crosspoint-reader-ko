@@ -330,8 +330,8 @@ void BaseTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* t
   // icon slot so a freshly-disconnected WiFi state doesn't leave ghosts.
   constexpr int maxBatteryWidth = 80;
   const int clearWidth = maxBatteryWidth + wifiIconWidth + wifiBatterySpacing;
-  renderer.fillRect(rect.x + rect.width - clearWidth, rect.y + 5, clearWidth,
-                    BaseMetrics::values.batteryHeight + 10, false);
+  renderer.fillRect(rect.x + rect.width - clearWidth, rect.y + 5, clearWidth, BaseMetrics::values.batteryHeight + 10,
+                    false);
 
   const bool showBatteryPercentage =
       SETTINGS.hideBatteryPercentage != CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS;
@@ -345,9 +345,8 @@ void BaseTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* t
   // text (when shown) is to the immediate left of the battery icon, so we
   // approximate its width with a 4-character slot ("100%") to leave room.
   if (isWifiConnected()) {
-    const int percentageSlot = showBatteryPercentage
-                                   ? renderer.getTextWidth(SMALL_FONT_ID, "100%") + batteryPercentSpacing
-                                   : 0;
+    const int percentageSlot =
+        showBatteryPercentage ? renderer.getTextWidth(SMALL_FONT_ID, "100%") + batteryPercentSpacing : 0;
     const int wifiX = batteryX - percentageSlot - wifiBatterySpacing - wifiIconWidth;
     const int wifiY = rect.y + 5 + (BaseMetrics::values.batteryHeight - wifiIconHeight) / 2;
     drawWifiIcon(renderer, wifiX, wifiY);
