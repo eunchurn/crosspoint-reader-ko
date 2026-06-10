@@ -39,7 +39,12 @@ using ProgressCb = void (*)(size_t written, size_t total, void* ctx);
 // next OTA app partition with interleaved 64 KiB erase + sector writes. On
 // success switches otadata via ota_boot::switchTo. Caller is responsible for
 // ESP.restart() afterwards.
-Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx);
+//
+// `effectiveSize`, when non-zero, caps both validation and flashing at the
+// first N bytes of the file. The OTA path uses this to flash only the body
+// of a signed firmware (file_size - 68 trailer). When zero, the full file is
+// used — the SD-card manual update path keeps this default.
+Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx, size_t effectiveSize = 0);
 
 // Full-image integrity check that mirrors the bootloader's verification:
 // header magic, segment table walk, XOR checksum, and SHA256 trailer (when
@@ -48,9 +53,11 @@ Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx);
 //
 // `partitionSize` is the size of the destination OTA partition; pass 0 to
 // skip the size-fits-partition check (e.g. when validating ahead of partition
-// lookup). Streams the file in CHUNK-sized reads; the file is rewound on
-// success so the caller can immediately reread it for flashing.
-Result validateImageFile(const char* sdPath, size_t partitionSize);
+// lookup). `effectiveSize`, when non-zero, treats only the first N bytes as
+// the image (used after stripping a 68-byte signature trailer). Streams the
+// file in CHUNK-sized reads; the file is rewound on success so the caller
+// can immediately reread it for flashing.
+Result validateImageFile(const char* sdPath, size_t partitionSize, size_t effectiveSize = 0);
 
 const char* resultName(Result r);
 

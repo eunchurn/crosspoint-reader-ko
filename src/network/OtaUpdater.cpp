@@ -13,6 +13,7 @@
 #include <memory>
 
 #include "FirmwareFlasher.h"
+#include "SignatureVerifier.h"
 #include "esp_http_client.h"
 #include "esp_wifi.h"
 
@@ -25,15 +26,6 @@ constexpr char latestReleaseUrl[] =
 char* local_buf;
 int output_len;
 int buf_cap;
-
-/*
- * When esp_crt_bundle.h included, it is pointing wrong header file
- * which is something under WifiClientSecure because of our framework based on arduno platform.
- * To manage this obstacle, don't include anything, just extern and it will point correct one.
- */
-extern "C" {
-extern esp_err_t esp_crt_bundle_attach(void* conf);
-}
 
 esp_err_t http_client_set_header_cb(esp_http_client_handle_t http_client) {
   return esp_http_client_set_header(http_client, "User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
@@ -103,8 +95,12 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
       /* Default HTTP client buffer size 512 byte only */
       .buffer_size = 8192,
       .buffer_size_tx = 8192,
+      /* Trust anchor is the firmware-signature trailer on the downloaded asset
+       * (see OtaUpdater::installUpdate). The unlocker desktop app spoofs this
+       * URL with a self-signed cert, so we don't attach a CA bundle and skip
+       * the hostname/CN check — esp_tls then runs without server verification.
+       * A man-in-the-middle still can't deliver a valid firmware (Ed25519). */
       .skip_cert_common_name_check = true,
-      .crt_bundle_attach = esp_crt_bundle_attach,
       .keep_alive_enable = true,
   };
 
@@ -399,11 +395,12 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate(ProgressCallback onProgres
       .buffer_size = 8192,
       .buffer_size_tx = 8192,
       .user_data = &dctx,
-      /* Enforce CN/SAN hostname verification — crt_bundle_attach validates the CA chain but
-       * hostname matching is a separate step. Leaving this true would let any cert signed by a
-       * trusted CA serve a tampered firmware over HTTPS. */
-      .skip_cert_common_name_check = false,
-      .crt_bundle_attach = esp_crt_bundle_attach,
+      /* Trust anchor is the Ed25519 signature trailer on the downloaded body
+       * (see SignatureVerifier). The unlocker desktop app serves this URL with
+       * a self-signed cert, so we drop CA validation and skip the hostname
+       * check; esp_tls runs without server verification. A man-in-the-middle
+       * cannot mint a valid firmware — they don't have the signing key. */
+      .skip_cert_common_name_check = true,
       .keep_alive_enable = true,
   };
 
@@ -461,9 +458,26 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate(ProgressCallback onProgres
   }
   LOG_INF("OTA", "download complete: %u bytes -> %s", static_cast<unsigned>(dctx.written), kOtaSdPath);
 
-  // Phase 2: flash from SD using the shared firmware flasher.
+  // Phase 2a: Ed25519 signature verification. Trust is anchored here — TLS
+  // ran without server-cert validation, so without this check anyone on the
+  // same DNS path could deliver a tampered firmware. SD-card manual update
+  // path skips this check (see docs/firmware-signature-migration.md).
+  size_t bodySize = 0;
+  const auto sigRes = signature_verify::verifyTrailer(kOtaSdPath, &bodySize);
+  if (sigRes != signature_verify::Result::OK) {
+    LOG_ERR("OTA", "signature verify failed: %s", signature_verify::resultName(sigRes));
+    char buf[48];
+    snprintf(buf, sizeof(buf), "sig:%s", signature_verify::resultName(sigRes));
+    lastError = buf;
+    return SIGNATURE_ERROR;
+  }
+  LOG_INF("OTA", "signature OK, body=%u bytes (file=%u)", static_cast<unsigned>(bodySize),
+          static_cast<unsigned>(dctx.written));
+
+  // Phase 2b: flash from SD using the shared firmware flasher. Pass bodySize
+  // so the 68-byte signature trailer is excluded from validation and flashing.
   phase = Phase::Flashing;
-  totalSize = dctx.written;
+  totalSize = bodySize;
   processedSize = 0;
   render = true;
   if (onProgress) onProgress(ctx);
@@ -476,7 +490,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate(ProgressCallback onProgres
     if (fc->onProgress) fc->onProgress(fc->userCtx);
   };
 
-  const auto fr = firmware_flash::flashFromSdPath(kOtaSdPath, progressCb, &flashCtx);
+  const auto fr = firmware_flash::flashFromSdPath(kOtaSdPath, progressCb, &flashCtx, bodySize);
   if (fr != firmware_flash::Result::OK) {
     LOG_ERR("OTA", "flash failed: %s", firmware_flash::resultName(fr));
     char buf[32];

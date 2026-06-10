@@ -27,6 +27,7 @@ class OtaUpdater {
     UPDATE_OLDER_ERROR,
     INTERNAL_UPDATE_ERROR,
     OOM_ERROR,
+    SIGNATURE_ERROR,  // missing trailer, bad magic, or Ed25519 verify failed
   };
 
   size_t getOtaSize() const { return otaSize; }

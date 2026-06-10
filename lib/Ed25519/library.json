@@ -1,0 +1,15 @@
+{
+  "name": "Ed25519",
+  "version": "1.0.0-orlp.verify",
+  "description": "Verify-only subset of orlp/ed25519 (zlib license). Only ed25519_verify is linked; sign/keygen/key_exchange declarations are kept in the header but their implementations are excluded.",
+  "keywords": ["crypto", "ed25519", "signature"],
+  "license": "Zlib",
+  "homepage": "https://github.com/orlp/ed25519",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "build": {
+    "flags": [
+      "-DED25519_NO_SEED"
+    ]
+  }
+}

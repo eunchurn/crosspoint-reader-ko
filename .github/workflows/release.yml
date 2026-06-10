@@ -53,6 +53,29 @@ jobs:
           0x8000 .pio/build/gh_release/partitions.bin \
           0x10000 .pio/build/gh_release/firmware.bin
 
+    # ─── OTA signature: appends [64B Ed25519 sig][4B 'CPSG'] to firmware.bin ───
+    # Runs AFTER merge_bin so the merged full-flash image (CrossPoint-*.bin)
+    # contains the unsigned firmware — full reflash bypasses our verifier
+    # anyway. The standalone firmware.bin asset is what OTA downloads, and
+    # that is the file we sign.
+    - name: Install signing dependencies
+      run: uv pip install --system cryptography
+
+    - name: Sign firmware.bin for OTA
+      env:
+        ED25519_PRIVATE_KEY: ${{ secrets.ED25519_PRIVATE_KEY }}
+      run: |
+        if [ -z "$ED25519_PRIVATE_KEY" ]; then
+          echo "::error::ED25519_PRIVATE_KEY secret is not set — refusing to release an unsigned firmware.bin."
+          exit 1
+        fi
+        python scripts/sign_firmware.py .pio/build/gh_release/firmware.bin
+
+    - name: Verify firmware.bin signature (self-check)
+      run: |
+        python scripts/verify_firmware_signature.py \
+          .pio/build/gh_release/firmware.bin --embedded
+
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:

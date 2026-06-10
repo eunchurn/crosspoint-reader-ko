@@ -86,14 +86,23 @@ Result feedHashAndChecksum(HalFile& file, size_t length, uint8_t* xorAccum, mbed
 }
 }  // namespace
 
-Result validateImageFile(const char* sdPath, size_t partitionSize) {
+Result validateImageFile(const char* sdPath, size_t partitionSize, size_t effectiveSize) {
   HalFile file;
   if (!Storage.openFileForRead("FLASH", sdPath, file) || !file) {
     LOG_ERR("FLASH", "validate: open failed: %s", sdPath);
     return Result::OPEN_FAIL;
   }
 
-  const size_t fileSize = file.fileSize();
+  const size_t rawSize = file.fileSize();
+  // When the caller passes a non-zero effectiveSize, treat only the first N bytes as the image
+  // (rest is signature trailer). Refuse if the file isn't at least that long.
+  if (effectiveSize > 0 && effectiveSize > rawSize) {
+    LOG_ERR("FLASH", "validate: effectiveSize %u exceeds file size %u", static_cast<unsigned>(effectiveSize),
+            static_cast<unsigned>(rawSize));
+    file.close();
+    return Result::BAD_SIZE;
+  }
+  const size_t fileSize = effectiveSize > 0 ? effectiveSize : rawSize;
   if (fileSize < MIN_FIRMWARE_SIZE) {
     LOG_ERR("FLASH", "validate: too small: %u", static_cast<unsigned>(fileSize));
     file.close();
@@ -226,7 +235,7 @@ Result validateImageFile(const char* sdPath, size_t partitionSize) {
   return Result::OK;
 }
 
-Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx) {
+Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx, size_t effectiveSize) {
   // Resolve destination first so we can size-check during validation. The full image-integrity
   // pass below verifies header, segment table, XOR checksum and SHA256 trailer end-to-end before
   // we touch otadata, so a truncated/corrupted .bin can never become the next boot target.
@@ -236,7 +245,7 @@ Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx) {
     return Result::NO_PARTITION;
   }
 
-  const Result validateRes = validateImageFile(sdPath, dest->size);
+  const Result validateRes = validateImageFile(sdPath, dest->size, effectiveSize);
   if (validateRes != Result::OK) {
     LOG_ERR("FLASH", "image validation failed: %s", resultName(validateRes));
     return validateRes;
@@ -248,7 +257,14 @@ Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx) {
     return Result::OPEN_FAIL;
   }
 
-  const size_t firmwareSize = file.fileSize();
+  const size_t rawSize = file.fileSize();
+  if (effectiveSize > 0 && effectiveSize > rawSize) {
+    LOG_ERR("FLASH", "effectiveSize %u exceeds file size %u", static_cast<unsigned>(effectiveSize),
+            static_cast<unsigned>(rawSize));
+    file.close();
+    return Result::BAD_SIZE;
+  }
+  const size_t firmwareSize = effectiveSize > 0 ? effectiveSize : rawSize;
   LOG_INF("FLASH", "src=%s size=%u dest=%s @0x%x partsize=%u", sdPath, static_cast<unsigned>(firmwareSize), dest->label,
           static_cast<unsigned>(dest->address), static_cast<unsigned>(dest->size));
 
